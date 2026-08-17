@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Tanutus Keyboard</string>
+    <string name="ime_label">Tanutus Keyboard</string>
+
+    <string name="enable_keyboard_button">キーボードを有効化する</string>
+    <string name="switch_keyboard_button">キーボードを切り替える</string>
+    <string name="main_activity_description">
+        「%1$s」を使うには、まずシステム設定でこのキーボードを有効化してください。
+        有効化後、任意のテキスト欄でキーボード切り替えから選択できます。
+    </string>
+</resources>

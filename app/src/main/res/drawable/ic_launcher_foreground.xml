@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Placeholder mark: a simple 2x2 key grid, standing in for the app icon. -->
+    <path
+        android:fillColor="@color/launcher_foreground"
+        android:pathData="M29,29 h22 v22 h-22 z" />
+    <path
+        android:fillColor="@color/launcher_foreground"
+        android:pathData="M57,29 h22 v22 h-22 z" />
+    <path
+        android:fillColor="@color/launcher_foreground"
+        android:pathData="M29,57 h22 v22 h-22 z" />
+    <path
+        android:fillColor="@color/launcher_foreground"
+        android:pathData="M57,57 h22 v22 h-22 z" />
+</vector>

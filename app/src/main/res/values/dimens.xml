@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Layout -->
+    <dimen name="key_height">52dp</dimen>
+    <dimen name="candidate_bar_height">44dp</dimen>
+    <dimen name="key_label_text_size">18sp</dimen>
+    <dimen name="candidate_text_size">16sp</dimen>
+    <dimen name="key_gap">2dp</dimen>
+
+    <!--
+      docs/keyboard-spec.md leaves these as "実装しながら調整する" (tune while
+      building). Starting values below; retune on-device.
+    -->
+    <dimen name="space_drag_threshold">24dp</dimen>
+    <dimen name="space_tap_slop">12dp</dimen>
+
+    <integer name="long_press_timeout_ms">500</integer>
+    <integer name="backspace_repeat_interval_ms">60</integer>
+</resources>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Placeholder values only — docs/keyboard-spec.md leaves the exact colors
+      undecided ("視覚的フィードバックの具体的な配色"). The rule they encode
+      (per-layer background, filled-vs-normal for locked toggle keys) is what
+      matters; retune these freely.
+    -->
+    <color name="layer_base_background">#FF20232A</color>
+    <color name="layer_symbol_background">#FF1F2A38</color>
+
+    <color name="key_background_normal">#FF30343C</color>
+    <color name="key_background_locked">#FF4C8BF5</color>
+    <color name="key_text_normal">#FFF5F5F5</color>
+    <color name="key_text_locked">#FFFFFFFF</color>
+
+    <color name="candidate_bar_background">#FF15171B</color>
+    <color name="candidate_text">#FFF5F5F5</color>
+    <color name="candidate_selected_background">#FF4C8BF5</color>
+
+    <color name="launcher_background">#FF20232A</color>
+    <color name="launcher_foreground">#FF4C8BF5</color>
+</resources>
