@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-      Placeholder values only — docs/keyboard-spec.md leaves the exact colors
-      undecided ("視覚的フィードバックの具体的な配色"). The rule they encode
-      (per-layer background, filled-vs-normal for locked toggle keys) is what
-      matters; retune these freely.
+      docs/keyboard-spec.md left the exact colors undecided
+      ("視覚的フィードバックの具体的な配色"); these values were confirmed as final
+      after on-device review (Pixel 9a, 2026-08-22) rather than left as placeholders.
     -->
     <color name="layer_base_background">#FF20232A</color>
     <color name="layer_symbol_background">#FF1F2A38</color>

@@ -8,8 +8,9 @@
     <dimen name="key_gap">2dp</dimen>
 
     <!--
-      docs/keyboard-spec.md leaves these as "実装しながら調整する" (tune while
-      building). Starting values below; retune on-device.
+      docs/keyboard-spec.md left these as "実装しながら調整する" (tune while
+      building). Confirmed good on-device (Pixel 9a, 2026-08-22) at the values below —
+      not placeholders.
     -->
     <dimen name="space_drag_threshold">24dp</dimen>
     <dimen name="space_tap_slop">12dp</dimen>

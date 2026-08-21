@@ -25,16 +25,16 @@
       `uiautomator dump`でEditTextの実テキストを確認したところ`a\tb`(実際のタブ文字)であることを
       確認。表示上スペースと見分けづらいだけで、実装は正しい。
 
-## 数値のチューニング
+## 数値のチューニング(実機確認済み — Pixel 9a、2026-08-22)
 
-`docs/keyboard-spec.md`に「実装しながら調整」と明記されていた項目。実機で見ながら調整する。
+`docs/keyboard-spec.md`に「実装しながら調整」と明記されていた項目。
 
-- [ ] `app/src/main/res/values/dimens.xml`
-  - `space_drag_threshold`(現在24dp)
-  - `space_tap_slop`(現在12dp)
-  - `long_press_timeout_ms`(現在500ms)
-  - `backspace_repeat_interval_ms`(現在60ms)
-- [ ] `app/src/main/res/values/colors.xml` — 全色プレースホルダー
+- [x] `app/src/main/res/values/dimens.xml` — スペースキーのドラッグ(カーソル移動)・
+      タップ判定の感触を実機で確認、現状の値(`space_drag_threshold`24dp、
+      `space_tap_slop`12dp、`long_press_timeout_ms`500ms、
+      `backspace_repeat_interval_ms`60ms)で問題なしとの回答。変更なし。
+- [x] `app/src/main/res/values/colors.xml` — 配色(背景の濃紺、キーのグレー、
+      ロック時の青)も実機で確認、このままでよいとの回答。変更なし。
 
 ## 将来タスク(今回は明示的にスコープ外)
 
