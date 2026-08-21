@@ -3,7 +3,9 @@ package com.tanutus.ime.view
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.RectF
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
@@ -93,6 +95,24 @@ class KeyboardView
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             super.onSizeChanged(w, h, oldw, oldh)
             computeRowRects(w, h)
+            excludeFromSystemGestures(w, h)
+        }
+
+        /**
+         * Row 4's leftmost keys (Shift) and rightmost keys (Enter) sit flush against the
+         * screen edges, the same band the system reserves for its back-gesture/nav-handle
+         * touch handling. Without this, a tap there can be swallowed by system UI instead of
+         * reaching [onTouchEvent] (observed on-device as the IME silently hiding itself instead
+         * of registering the tap). Declaring the whole keyboard as gesture-excluded is the
+         * platform-sanctioned fix other on-screen keyboards use for this.
+         */
+        private fun excludeFromSystemGestures(w: Int, h: Int) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+            if (w == 0 || h == 0) {
+                systemGestureExclusionRects = emptyList()
+                return
+            }
+            systemGestureExclusionRects = listOf(Rect(0, 0, w, h))
         }
 
         private fun computeRowRects(w: Int, h: Int) {

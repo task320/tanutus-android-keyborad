@@ -3,15 +3,19 @@ package com.tanutus.ime.core.conversion
 /**
  * A single in-progress (or just-resolved) conversion state.
  *
- * [candidates] always contains at least [text] itself. Today's placeholder converter never
- * produces more than one candidate, but the field exists so the space key's "next candidate"
- * gesture (see core/gesture/SpaceKeyGestureHandler) has real plumbing to call into once a real
+ * [candidates] contains [text] itself whenever [text] is non-empty, and is empty otherwise —
+ * an empty [text] (e.g. right after [KanaConverter.dropLast] clears the last character) must
+ * not surface as a phantom empty-string candidate in the candidate bar (see
+ * com.tanutus.ime.view.CandidateBarView.setCandidates, which treats a non-empty candidate list
+ * as "show these", even if every entry is blank). Today's placeholder converter never produces
+ * more than one candidate, but the field exists so the space key's "next candidate" gesture
+ * (see core/gesture/SpaceKeyGestureHandler) has real plumbing to call into once a real
  * kana-kanji engine (e.g. Mozc) is dropped in behind the [KanaConverter] interface.
  */
 data class Composition(
     val rawInput: String,
     val text: String,
-    val candidates: List<String> = listOf(text),
+    val candidates: List<String> = if (text.isEmpty()) emptyList() else listOf(text),
     val candidateIndex: Int = 0,
 ) {
     val isEmpty: Boolean get() = rawInput.isEmpty()
