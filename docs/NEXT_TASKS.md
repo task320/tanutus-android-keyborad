@@ -14,10 +14,16 @@
       `VibrationEffect.EFFECT_TICK`がシステム側で無効化される**仕様のため無振動に見えていた
       (この設定は`Settings.System.HAPTIC_FEEDBACK_ENABLED`)。ONにしたら振動を確認できた。
       アプリ側のバグではないため対応不要。ユーザーからバグ報告が来た場合はまずこの設定を疑うこと。
-- [ ] **(新規発見)** 複数IMEが有効な状態だと、システムの言語切替(地球儀)アイコンが
-      「A/あ」(ローマ字入力切替)キーの右上に重なって表示され、右寄りをタップするとシステムに
-      タップを奪われることがある。実運用でのユーザー誤タップリスクとして要検討
-      (`onCreateInputView`で`setInputMethodPickerVisibility`相当の抑制や、キー配置調整の余地がないか調査)。
+- [x] **(新規発見・解決済み)** 複数IMEが有効な状態だと、システムの言語切替(地球儀)アイコンと
+      キーボード折りたたみ(▽)アイコンが行4に重なって表示され、タップがシステムに奪われることが
+      あった。原因は行4がスワイプ/長押しでホーム・アシスタントを呼び出す`mandatorySystemGestures`
+      (アプリ側で除外不可能な予約領域、`systemGestureExclusionRects`とは別物)と重なっていたこと。
+      `TanutusImeService.applyGestureSafeAreaPadding`でルートビューに
+      `WindowInsets.Type.mandatorySystemGestures()`/`navigationBars()`分の下パディングを追加し、
+      実機(Pixel 9a)で重なり解消を確認済み。
+- [x] **タブ入力の実値確認**: 長押しでタブが入力されているか見た目で分かりにくいとの指摘があったため、
+      `uiautomator dump`でEditTextの実テキストを確認したところ`a\tb`(実際のタブ文字)であることを
+      確認。表示上スペースと見分けづらいだけで、実装は正しい。
 
 ## 数値のチューニング
 

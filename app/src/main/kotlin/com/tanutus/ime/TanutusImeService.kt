@@ -5,6 +5,8 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.LinearLayout
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.tanutus.ime.core.conversion.Composition
 import com.tanutus.ime.core.conversion.KanaConverter
 import com.tanutus.ime.core.conversion.RomajiHiraganaConverter
@@ -44,6 +46,7 @@ class TanutusImeService :
     private lateinit var haptics: HapticsHelper
     private lateinit var keyboardView: KeyboardView
     private lateinit var candidateBarView: CandidateBarView
+    private lateinit var inputRootView: LinearLayout
     private var keyboardViewReady = false
 
     private var enterKeyBehavior: EnterKeyBehavior = EditorInfoActionMapper.mapEnterKey(null)
@@ -65,22 +68,41 @@ class TanutusImeService :
             }
         keyboardViewReady = true
 
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(
-                candidateBarView,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    resources.getDimensionPixelSize(R.dimen.candidate_bar_height),
-                ),
-            )
-            addView(
-                keyboardView,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    resources.getDimensionPixelSize(R.dimen.key_height) * ROW_COUNT,
-                ),
-            )
+        inputRootView =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(
+                    candidateBarView,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        resources.getDimensionPixelSize(R.dimen.candidate_bar_height),
+                    ),
+                )
+                addView(
+                    keyboardView,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        resources.getDimensionPixelSize(R.dimen.key_height) * ROW_COUNT,
+                    ),
+                )
+            }
+        applyGestureSafeAreaPadding(inputRootView)
+        return inputRootView
+    }
+
+    /**
+     * Row 4's bottom edge sits flush with the screen edge, the same strip the system reserves
+     * for the home-swipe/assistant-long-press gesture (WindowInsets.Type.
+     * mandatorySystemGestures()). Unlike the back-swipe edges (handled in
+     * [KeyboardView.excludeFromSystemGestures]), apps cannot opt out of this one — the fix is
+     * to keep every key's hit-box out of it by padding the input view by that inset.
+     */
+    private fun applyGestureSafeAreaPadding(view: View) {
+        ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+            val gestureBottom = insets.getInsets(WindowInsetsCompat.Type.mandatorySystemGestures()).bottom
+            val navBarBottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+            v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, maxOf(gestureBottom, navBarBottom))
+            insets
         }
     }
 
@@ -217,6 +239,9 @@ class TanutusImeService :
         val layout = KeyboardLayouts.layoutFor(state.layer)
         val colors = KeyboardThemeProvider.themeFor(state.layer, this)
         keyboardView.render(layout, colors) { action -> stateMachine.isLockedVisual(action) }
+        // Keeps the gesture-safe-area padding (see applyGestureSafeAreaPadding) visually
+        // seamless with row 4 instead of showing as a mismatched strip below it.
+        inputRootView.setBackgroundColor(colors.background)
     }
 
     private companion object {
