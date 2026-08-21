@@ -98,7 +98,12 @@ class TanutusImeService :
     override fun onKeyChar(char: Char) {
         val state = stateMachine.state
         if (state.layer == Layer.BASE && state.inputMode == InputMode.ROMAJI) {
+            // Kana has no case, so shift never affects the converted text here — but the key
+            // itself still counts as "the next character" for the spec's momentary-shift rule
+            // (docs/keyboard-spec.md, シフトキー: "入力後は自動解除"), so a dangling MOMENTARY
+            // shift must still be released.
             onCompositionUpdated(kanaConverter.input(char.lowercaseChar()))
+            consumeMomentaryShift()
         } else {
             commitLiteralChar(char)
         }

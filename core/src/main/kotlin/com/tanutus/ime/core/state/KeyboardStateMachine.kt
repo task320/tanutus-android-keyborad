@@ -101,6 +101,9 @@ class KeyboardStateMachine(initial: KeyboardUiState = KeyboardUiState()) {
         when (action) {
             KeyAction.Shift -> uiState.shift == ShiftState.LOCKED
             KeyAction.LayerToggle -> uiState.layer == Layer.SYMBOL
+            // Spec (docs/keyboard-spec.md, 視覚的フィードバックの統一ルール) lists both
+            // direct-alnum mode and zenkaku mode as fill triggers for this one key — the OR
+            // is intentional, not a placeholder collapsing two states into one.
             KeyAction.RomajiToggle -> uiState.inputMode == InputMode.DIRECT_ALNUM || uiState.zenkaku
             else -> false
         }
