@@ -136,6 +136,10 @@ class KeyboardView
                 rowRects = emptyArray()
                 return
             }
+            // Row 0's per-unit-weight width is the shared reference a `centered` row's keys are
+            // sized against, so they line up with row 0's columns instead of stretching to fill
+            // the full width themselves (see KeyRow.centered).
+            val unitWidth = w / rows[0].keys.sumOf { it.widthWeight.toDouble() }.toFloat()
             val rowHeight = h.toFloat() / rows.size
             rowRects =
                 Array(rows.size) { rowIndex ->
@@ -143,9 +147,10 @@ class KeyboardView
                     val totalWeight = row.keys.sumOf { it.widthWeight.toDouble() }.toFloat()
                     val top = rowHeight * rowIndex
                     val bottom = top + rowHeight
-                    var x = 0f
+                    var x = if (row.centered) (w - unitWidth * totalWeight) / 2f else 0f
                     Array(row.keys.size) { colIndex ->
-                        val width = w * (row.keys[colIndex].widthWeight / totalWeight)
+                        val width =
+                            if (row.centered) unitWidth * row.keys[colIndex].widthWeight else w * (row.keys[colIndex].widthWeight / totalWeight)
                         val rect = RectF(x, top, x + width, bottom)
                         x += width
                         rect

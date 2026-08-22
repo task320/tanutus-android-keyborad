@@ -42,7 +42,13 @@ data class KeyDef(
     val widthWeight: Float = 1f,
 )
 
-data class KeyRow(val keys: List<KeyDef>)
+/**
+ * [centered]: when true, this row's keys are drawn at the *same* width as row 0's keys
+ * (rather than stretching to fill the row, as every other row does) and the row is horizontally
+ * centered, leaving equal empty margins on both sides. See [KeyboardLayouts.BASE_ROWS_PREFIX]'s
+ * z-row for why.
+ */
+data class KeyRow(val keys: List<KeyDef>, val centered: Boolean = false)
 
 data class KeyboardLayout(val layer: Layer, val rows: List<KeyRow>)
 
@@ -97,7 +103,7 @@ object KeyboardLayouts {
                 "qwertyuiop".map { charKey("key_$it", it) } + BACKSPACE_KEY,
             ),
             KeyRow("asdfghjkl".map { charKey("key_$it", it) }),
-            KeyRow("zxcvbnm".map { charKey("key_$it", it) }),
+            KeyRow("zxcvbnm".map { charKey("key_$it", it) }, centered = true),
         )
 
     private val SYMBOL_ROWS_PREFIX: List<KeyRow> =
