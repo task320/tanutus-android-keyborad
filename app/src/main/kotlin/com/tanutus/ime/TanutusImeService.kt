@@ -138,6 +138,16 @@ class TanutusImeService :
 
     override fun onShiftPairKey(pair: KeyAction.ShiftPair) {
         val state = stateMachine.state
+        // Unshifted "-" in romaji mode is the chōon (long vowel) mark, not the ASCII hyphen —
+        // feed it through the kana converter like any other romaji key instead of committing it
+        // as a literal symbol, so it lands inside the pending composition (e.g. "で" + "-" reads
+        // as "でー", ready to convert to "データ") rather than jumping ahead of it. Shift+"-"
+        // (the "_" on layer 2) is still a plain literal symbol.
+        if (state.inputMode == InputMode.ROMAJI && pair.base == '-' && state.shift == ShiftState.OFF) {
+            onCompositionUpdated(kanaConverter.input('-'))
+            consumeMomentaryShift()
+            return
+        }
         val glyph = if (state.shift != ShiftState.OFF) pair.shifted else pair.base
         commitLiteralChar(glyph, alreadyCased = true)
     }
@@ -234,6 +244,12 @@ class TanutusImeService :
     }
 
     private fun commitLiteralChar(char: Char, alreadyCased: Boolean = false) {
+        // A literal symbol commits straight to the input connection, bypassing the kana
+        // converter entirely — if a romaji composition were still pending, InputConnection would
+        // treat this commitText as replacing that composing span, visually splicing the symbol
+        // into the middle of (and reordering) the composition instead of after it. Flushing
+        // first guarantees literal chars always land after whatever the user already composed.
+        commitActiveComposition()
         val state = stateMachine.state
         var output = if (!alreadyCased && state.shift != ShiftState.OFF) char.uppercaseChar() else char
         // Layer 2 (digits/symbols) in romaji mode is always full-width, independent of the
