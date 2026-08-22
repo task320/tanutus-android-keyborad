@@ -9,7 +9,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.tanutus.ime.core.conversion.Composition
 import com.tanutus.ime.core.conversion.KanaConverter
-import com.tanutus.ime.core.conversion.RomajiHiraganaConverter
 import com.tanutus.ime.core.conversion.ZenkakuHankakuConverter
 import com.tanutus.ime.core.gesture.SpaceKeyActions
 import com.tanutus.ime.core.gesture.SpaceKeyGestureHandler
@@ -24,6 +23,7 @@ import com.tanutus.ime.core.state.StateEvent
 import com.tanutus.ime.editor.EditorInfoActionMapper
 import com.tanutus.ime.editor.EnterKeyBehavior
 import com.tanutus.ime.haptics.HapticsHelper
+import com.tanutus.ime.mozc.MozcKanaConverter
 import com.tanutus.ime.theme.KeyboardThemeProvider
 import com.tanutus.ime.view.CandidateBarView
 import com.tanutus.ime.view.KeyboardView
@@ -40,8 +40,8 @@ class TanutusImeService :
     KeyboardActionListener,
     SpaceKeyActions {
     private var stateMachine = KeyboardStateMachine()
-    private val kanaConverter: KanaConverter = RomajiHiraganaConverter()
-    private val spaceKeyGestureHandler = SpaceKeyGestureHandler(kanaConverter, this)
+    private lateinit var kanaConverter: KanaConverter
+    private lateinit var spaceKeyGestureHandler: SpaceKeyGestureHandler
 
     private lateinit var haptics: HapticsHelper
     private lateinit var keyboardView: KeyboardView
@@ -54,6 +54,11 @@ class TanutusImeService :
     override fun onCreate() {
         super.onCreate()
         haptics = HapticsHelper(this)
+        // MozcKanaConverter touches Context (assets/filesDir) during construction, which isn't
+        // safe before attachBaseContext has run — so this and spaceKeyGestureHandler (which
+        // wraps it) are built here rather than as field initializers.
+        kanaConverter = MozcKanaConverter(this)
+        spaceKeyGestureHandler = SpaceKeyGestureHandler(kanaConverter, this)
     }
 
     override fun onCreateInputView(): View {
