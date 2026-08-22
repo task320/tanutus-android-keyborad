@@ -60,13 +60,16 @@
 
 ## 将来タスク
 
-- [ ] **Mozcエンジン統合**。実現可能性検証は完了済み(2026-08-22、詳細は
-      [mozc-integration-feasibility.md](mozc-integration-feasibility.md)):
-      WSL2 + Bazel + Android NDKで本家`google/mozc`から`libmozc.so`(全4 ABI)と
-      辞書データセット(`mozc.data`、約18MB)の両方のビルドに成功、JNIインターフェース
-      (`evalCommand`等)も把握済み。未着手なのはKotlin側JNIブリッジ実装・
-      `protocol/commands.proto`のビルド・`KanaConverter`インターフェース経由での接続・
-      アセット同梱・実機動作確認。次回セッションへの引き継ぎ事項は上記ドキュメント参照。
+- [ ] **Mozcエンジン統合**。実装まで完了済み(2026-08-22、詳細は
+      [mozc-integration-feasibility.md](mozc-integration-feasibility.md)):新規`:mozc`
+      モジュールに、WSL2ビルドの`libmozc.so`(全4 ABI、Git LFS管理)・`mozc.data`辞書
+      (Git LFS管理)・`protocol/*.proto`のGradle protobuf-liteビルド・JNIブリッジ
+      (`MozcJNI`)・`KanaConverter`実装(`MozcKanaConverter`、SEND_KEY/SPACE変換/ENTER確定の
+      セッションプロトコルを使用)を実装。`:app`が`:mozc`に依存し、APKビルドは成功
+      (`app-debug.apk`、全4 ABI込みで約76MB)。**未着手**: `TanutusImeService`の
+      デフォルトを`RomajiHiraganaConverter`から`MozcKanaConverter`へ切り替えること、
+      および実機/エミュレータでの実際の変換動作確認(セッションプロトコルの実装は
+      ソースコード上の理解に基づくもので、実機で一度も動かしていない)。
 
 ## ビルド・テストコマンド
 
