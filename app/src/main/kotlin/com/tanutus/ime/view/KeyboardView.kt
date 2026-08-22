@@ -47,6 +47,7 @@ class KeyboardView
         private var layout: KeyboardLayout = KeyboardLayouts.BASE_LAYOUT
         private var colors: KeyboardColors = KeyboardThemeProvider.themeFor(Layer.BASE, context)
         private var isLockedVisual: (KeyAction) -> Boolean = { false }
+        private var uppercaseLetterKeys: Boolean = false
 
         private var rowRects: Array<Array<RectF>> = emptyArray()
 
@@ -84,10 +85,23 @@ class KeyboardView
         private val spaceTouchAdapter = SpaceKeyTouchAdapter(spaceGestureDetector, interactionHandler)
         private var handlingSpaceGesture = false
 
-        /** Single entry point the service calls on every state change to keep drawing in sync. */
-        fun render(newLayout: KeyboardLayout, newColors: KeyboardColors, lockedVisual: (KeyAction) -> Boolean) {
+        /**
+         * Single entry point the service calls on every state change to keep drawing in sync.
+         *
+         * [uppercaseLetters] only affects the drawn label of [KeyAction.Char] letter keys — it
+         * intentionally does not apply while composing romaji (kana has no case, so the
+         * converted output wouldn't match an uppercase glyph; see
+         * [com.tanutus.ime.TanutusImeService.refreshKeyboardView]).
+         */
+        fun render(
+            newLayout: KeyboardLayout,
+            newColors: KeyboardColors,
+            uppercaseLetters: Boolean = false,
+            lockedVisual: (KeyAction) -> Boolean,
+        ) {
             layout = newLayout
             colors = newColors
+            uppercaseLetterKeys = uppercaseLetters
             isLockedVisual = lockedVisual
             invalidate()
         }
@@ -153,7 +167,8 @@ class KeyboardView
                     canvas.drawRect(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset, keyBackgroundPaint)
                     keyTextPaint.color = if (locked) colors.keyTextLocked else colors.keyTextNormal
                     val textY = rect.centerY() - (keyTextPaint.descent() + keyTextPaint.ascent()) / 2f
-                    canvas.drawText(key.label, rect.centerX(), textY, keyTextPaint)
+                    val label = if (uppercaseLetterKeys && key.action is KeyAction.Char) key.label.uppercase() else key.label
+                    canvas.drawText(label, rect.centerX(), textY, keyTextPaint)
                 }
             }
         }

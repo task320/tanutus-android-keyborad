@@ -238,7 +238,11 @@ class TanutusImeService :
         val state = stateMachine.state
         val layout = KeyboardLayouts.layoutFor(state.layer)
         val colors = KeyboardThemeProvider.themeFor(state.layer, this)
-        keyboardView.render(layout, colors) { action -> stateMachine.isLockedVisual(action) }
+        // Only direct-alnum mode is excluded from this: romaji composing ignores shift for
+        // casing (kana has no case, see onKeyChar), so showing uppercase key glyphs there
+        // would promise a case change the typed kana would never actually show.
+        val uppercaseLetters = state.inputMode == InputMode.DIRECT_ALNUM && state.shift != ShiftState.OFF
+        keyboardView.render(layout, colors, uppercaseLetters) { action -> stateMachine.isLockedVisual(action) }
         // Keeps the gesture-safe-area padding (see applyGestureSafeAreaPadding) visually
         // seamless with row 4 instead of showing as a mismatched strip below it.
         inputRootView.setBackgroundColor(colors.background)
