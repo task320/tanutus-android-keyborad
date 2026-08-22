@@ -50,6 +50,14 @@
 - [x] Shiftロック中の色を通常のロック色の半分の明るさ(`key_background_shift_locked`
       = `#FF26457A`)に変更、`#12`・`A/あ`のロック色とは視覚的に区別できるようにした
 
+## 句読点キーの追加(実装済み・実機確認済み — Pixel 9a、2026-08-22)
+
+- [x] ローマ字入力モードのみ、句点(。)をスペースの左隣、読点(、)をスペースの右隣に追加
+      (`KeyAction.Punctuation`、`KeyboardLayouts.FUNCTION_ROW_ROMAJI`)。
+      タップすると未確定のローマ字合成を確定してから句読点自体を確定する
+      (`TanutusImeService.onPunctuationKey`)。実機で`あ。、`の入力を確認済み。
+      直接英数モードのレイアウト(`FUNCTION_ROW_ALNUM`)には影響なし。
+
 ## 将来タスク(今回は明示的にスコープ外)
 
 - [ ] Mozcエンジン統合(mozkey/OyaMozcのfork、NDKビルド)。
@@ -58,7 +66,7 @@
 ## ビルド・テストコマンド
 
 ```bash
-./gradlew :core:test          # ユニットテスト(53件)
+./gradlew :core:test          # ユニットテスト(56件)
 ./gradlew :app:assembleDebug  # APKビルド
 ```
 
