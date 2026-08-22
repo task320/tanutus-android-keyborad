@@ -74,10 +74,17 @@ class KeyboardStateMachine(initial: KeyboardUiState = KeyboardUiState()) {
                 StateEvent.LayerToggleTap ->
                     before.copy(layer = if (before.layer == Layer.BASE) Layer.SYMBOL else Layer.BASE)
 
-                StateEvent.RomajiToggleTap ->
+                StateEvent.RomajiToggleTap -> {
+                    val newMode = if (before.inputMode == InputMode.ROMAJI) InputMode.DIRECT_ALNUM else InputMode.ROMAJI
                     before.copy(
-                        inputMode = if (before.inputMode == InputMode.ROMAJI) InputMode.DIRECT_ALNUM else InputMode.ROMAJI,
+                        inputMode = newMode,
+                        // Shift is hidden (and unreachable) during romaji composition — see
+                        // KeyboardLayouts.FUNCTION_ROW_ROMAJI — so returning to it must drop
+                        // any shift the user left engaged in direct-alnum mode rather than
+                        // leaving a dangling lock the user can no longer see or clear.
+                        shift = if (newMode == InputMode.ROMAJI) ShiftState.OFF else before.shift,
                     )
+                }
 
                 StateEvent.RomajiToggleLongPress -> before.copy(zenkaku = !before.zenkaku)
 

@@ -98,6 +98,22 @@ class KeyboardStateMachineTest {
     }
 
     @Test
+    fun `returning to romaji mode drops a locked or momentary shift`() {
+        machine.dispatch(StateEvent.RomajiToggleTap) // -> DIRECT_ALNUM
+        machine.dispatch(StateEvent.ShiftLongPress) // -> LOCKED
+
+        val backToRomaji = machine.dispatch(StateEvent.RomajiToggleTap)
+        assertEquals(InputMode.ROMAJI, backToRomaji.newState.inputMode)
+        assertEquals(ShiftState.OFF, backToRomaji.newState.shift)
+    }
+
+    @Test
+    fun `switching to direct-alnum mode does not touch an already-off shift`() {
+        val toDirect = machine.dispatch(StateEvent.RomajiToggleTap)
+        assertEquals(ShiftState.OFF, toDirect.newState.shift)
+    }
+
+    @Test
     fun `romaji toggle long press flips zenkaku with haptic and fill visual`() {
         val toZenkaku = machine.dispatch(StateEvent.RomajiToggleLongPress)
         assertTrue(toZenkaku.newState.zenkaku)

@@ -1,5 +1,7 @@
 package com.tanutus.ime.core.layout
 
+import com.tanutus.ime.core.state.InputMode
+
 /** The two toggleable layers described in docs/keyboard-spec.md. */
 enum class Layer {
     BASE,
@@ -40,14 +42,19 @@ data class KeyboardLayout(val layer: Layer, val rows: List<KeyRow>)
 /**
  * Static layer definitions matching docs/keyboard-spec.md.
  *
- * [FUNCTION_ROW] is a single shared instance referenced by both [BASE_LAYOUT] and
- * [SYMBOL_LAYOUT] so that "row 4 never moves when switching layers" is a structural
- * (data-identity) guarantee rather than something that merely happens to look right.
+ * Row 4 has two variants selected by [InputMode] (see [FUNCTION_ROW_ALNUM] /
+ * [FUNCTION_ROW_ROMAJI]): Shift is only meaningful in direct-alnum input, where it actually
+ * changes the committed character (romaji composition ignores it — kana has no case, see
+ * [com.tanutus.ime.TanutusImeService.onKeyChar]), so it's hidden entirely during romaji
+ * composition rather than shown as a dead key. Each variant is a single shared instance
+ * referenced from both [Layer.BASE] and [Layer.SYMBOL] layouts, so that "row 4 never moves
+ * when switching *layers*" stays a structural (data-identity) guarantee for a given input
+ * mode, even though it now also varies across input modes.
  */
 object KeyboardLayouts {
     private fun charKey(id: String, char: Char): KeyDef = KeyDef(id, char.toString(), KeyAction.Char(char))
 
-    val FUNCTION_ROW: KeyRow =
+    val FUNCTION_ROW_ALNUM: KeyRow =
         KeyRow(
             listOf(
                 KeyDef("shift", "Shift", KeyAction.Shift),
@@ -58,61 +65,68 @@ object KeyboardLayouts {
             ),
         )
 
+    val FUNCTION_ROW_ROMAJI: KeyRow =
+        KeyRow(
+            listOf(
+                KeyDef("layer_toggle", "#12", KeyAction.LayerToggle),
+                KeyDef("space", " ", KeyAction.Space, widthWeight = 3f),
+                KeyDef("romaji_toggle", "A/あ", KeyAction.RomajiToggle),
+                KeyDef("enter", "Enter", KeyAction.Enter),
+            ),
+        )
+
     private val BACKSPACE_KEY = KeyDef("backspace", "⌫", KeyAction.Backspace)
 
-    val BASE_LAYOUT: KeyboardLayout =
-        KeyboardLayout(
-            layer = Layer.BASE,
-            rows =
-                listOf(
-                    KeyRow(
-                        "qwertyuiop".map { charKey("key_$it", it) } + BACKSPACE_KEY,
-                    ),
-                    KeyRow("asdfghjkl".map { charKey("key_$it", it) }),
-                    KeyRow("zxcvbnm".map { charKey("key_$it", it) }),
-                    FUNCTION_ROW,
-                ),
+    private val BASE_ROWS_PREFIX: List<KeyRow> =
+        listOf(
+            KeyRow(
+                "qwertyuiop".map { charKey("key_$it", it) } + BACKSPACE_KEY,
+            ),
+            KeyRow("asdfghjkl".map { charKey("key_$it", it) }),
+            KeyRow("zxcvbnm".map { charKey("key_$it", it) }),
         )
 
-    val SYMBOL_LAYOUT: KeyboardLayout =
-        KeyboardLayout(
-            layer = Layer.SYMBOL,
-            rows =
+    private val SYMBOL_ROWS_PREFIX: List<KeyRow> =
+        listOf(
+            KeyRow(
+                "1234567890".map { charKey("key_$it", it) } + BACKSPACE_KEY,
+            ),
+            KeyRow(
                 listOf(
-                    KeyRow(
-                        "1234567890".map { charKey("key_$it", it) } + BACKSPACE_KEY,
-                    ),
-                    KeyRow(
-                        listOf(
-                            charKey("key_paren_open", '('),
-                            charKey("key_paren_close", ')'),
-                            charKey("key_bracket_open", '['),
-                            charKey("key_bracket_close", ']'),
-                            charKey("key_brace_open", '{'),
-                            charKey("key_brace_close", '}'),
-                            KeyDef("key_hyphen", "-", KeyAction.ShiftPair('-', '_')),
-                            charKey("key_slash", '/'),
-                            charKey("key_colon", ':'),
-                        ),
-                    ),
-                    KeyRow(
-                        listOf(
-                            charKey("key_hash", '#'),
-                            charKey("key_asterisk", '*'),
-                            charKey("key_plus", '+'),
-                            charKey("key_gt", '>'),
-                            charKey("key_backtick", '`'),
-                            charKey("key_tilde", '~'),
-                            KeyDef("key_quote", "'", KeyAction.ShiftPair('\'', '"')),
-                        ),
-                    ),
-                    FUNCTION_ROW,
+                    charKey("key_paren_open", '('),
+                    charKey("key_paren_close", ')'),
+                    charKey("key_bracket_open", '['),
+                    charKey("key_bracket_close", ']'),
+                    charKey("key_brace_open", '{'),
+                    charKey("key_brace_close", '}'),
+                    KeyDef("key_hyphen", "-", KeyAction.ShiftPair('-', '_')),
+                    charKey("key_slash", '/'),
+                    charKey("key_colon", ':'),
                 ),
+            ),
+            KeyRow(
+                listOf(
+                    charKey("key_hash", '#'),
+                    charKey("key_asterisk", '*'),
+                    charKey("key_plus", '+'),
+                    charKey("key_gt", '>'),
+                    charKey("key_backtick", '`'),
+                    charKey("key_tilde", '~'),
+                    KeyDef("key_quote", "'", KeyAction.ShiftPair('\'', '"')),
+                ),
+            ),
         )
 
-    fun layoutFor(layer: Layer): KeyboardLayout =
-        when (layer) {
-            Layer.BASE -> BASE_LAYOUT
-            Layer.SYMBOL -> SYMBOL_LAYOUT
+    val BASE_LAYOUT_ALNUM: KeyboardLayout = KeyboardLayout(Layer.BASE, BASE_ROWS_PREFIX + FUNCTION_ROW_ALNUM)
+    val BASE_LAYOUT_ROMAJI: KeyboardLayout = KeyboardLayout(Layer.BASE, BASE_ROWS_PREFIX + FUNCTION_ROW_ROMAJI)
+    val SYMBOL_LAYOUT_ALNUM: KeyboardLayout = KeyboardLayout(Layer.SYMBOL, SYMBOL_ROWS_PREFIX + FUNCTION_ROW_ALNUM)
+    val SYMBOL_LAYOUT_ROMAJI: KeyboardLayout = KeyboardLayout(Layer.SYMBOL, SYMBOL_ROWS_PREFIX + FUNCTION_ROW_ROMAJI)
+
+    fun layoutFor(layer: Layer, inputMode: InputMode): KeyboardLayout =
+        when (layer to inputMode) {
+            Layer.BASE to InputMode.DIRECT_ALNUM -> BASE_LAYOUT_ALNUM
+            Layer.BASE to InputMode.ROMAJI -> BASE_LAYOUT_ROMAJI
+            Layer.SYMBOL to InputMode.DIRECT_ALNUM -> SYMBOL_LAYOUT_ALNUM
+            else -> SYMBOL_LAYOUT_ROMAJI
         }
 }

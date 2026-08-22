@@ -25,11 +25,11 @@ import com.tanutus.ime.theme.KeyboardColors
 import com.tanutus.ime.theme.KeyboardThemeProvider
 
 /**
- * Canvas-drawn keyboard surface. Rows 1-3 swap contents when the layer toggles; row 4 and
- * Backspace never move, because [rowRects] is computed once from the row *structure* (key
- * counts/weights), which is identical across [KeyboardLayouts.BASE_LAYOUT] and
- * [KeyboardLayouts.SYMBOL_LAYOUT] (see KeyboardLayoutDataTest) — [render] only rebinds which
- * [KeyDef] occupies each precomputed slot, it never triggers a relayout.
+ * Canvas-drawn keyboard surface. Row 4's structure is identical across [Layer.BASE] and
+ * [Layer.SYMBOL] for a given [com.tanutus.ime.core.state.InputMode] (see
+ * KeyboardLayoutDataTest), so switching layers never needs a relayout — but it does differ
+ * *between* input modes (Shift is only present in direct-alnum's row 4), so [render]
+ * recomputes [rowRects] on every call rather than assuming the row structure is fixed.
  *
  * The space key's touch stream is handed off entirely to [spaceTouchAdapter] /
  * [SpaceGestureDetector] for the duration of that gesture; every other key uses a simple
@@ -44,7 +44,7 @@ class KeyboardView
         var keyboardActionListener: KeyboardActionListener? = null
         var spaceGestureListener: SpaceGestureListener? = null
 
-        private var layout: KeyboardLayout = KeyboardLayouts.BASE_LAYOUT
+        private var layout: KeyboardLayout = KeyboardLayouts.BASE_LAYOUT_ROMAJI
         private var colors: KeyboardColors = KeyboardThemeProvider.themeFor(Layer.BASE, context)
         private var isLockedVisual: (KeyAction) -> Boolean = { false }
         private var uppercaseLetterKeys: Boolean = false
@@ -103,6 +103,7 @@ class KeyboardView
             colors = newColors
             uppercaseLetterKeys = uppercaseLetters
             isLockedVisual = lockedVisual
+            computeRowRects(width, height)
             invalidate()
         }
 
@@ -163,7 +164,12 @@ class KeyboardView
                     val key = keys[colIndex]
                     val rect = rects.getOrNull(colIndex) ?: continue
                     val locked = isLockedVisual(key.action)
-                    keyBackgroundPaint.color = if (locked) colors.keyBackgroundLocked else colors.keyBackgroundNormal
+                    keyBackgroundPaint.color =
+                        when {
+                            locked && key.action == KeyAction.Shift -> colors.keyBackgroundShiftLocked
+                            locked -> colors.keyBackgroundLocked
+                            else -> colors.keyBackgroundNormal
+                        }
                     canvas.drawRect(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset, keyBackgroundPaint)
                     keyTextPaint.color = if (locked) colors.keyTextLocked else colors.keyTextNormal
                     val textY = rect.centerY() - (keyTextPaint.descent() + keyTextPaint.ascent()) / 2f

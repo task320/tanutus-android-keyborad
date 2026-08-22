@@ -10,6 +10,9 @@
 
     <color name="key_background_normal">#FF30343C</color>
     <color name="key_background_locked">#FF4C8BF5</color>
+    <!-- Half the brightness of key_background_locked (per-channel /2), used only for the
+         Shift key's lock fill so it reads as visually distinct from #12/A-toggle locks. -->
+    <color name="key_background_shift_locked">#FF26457A</color>
     <color name="key_text_normal">#FFF5F5F5</color>
     <color name="key_text_locked">#FFFFFFFF</color>
 

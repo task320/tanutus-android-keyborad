@@ -236,7 +236,7 @@ class TanutusImeService :
     private fun refreshKeyboardView() {
         if (!keyboardViewReady) return
         val state = stateMachine.state
-        val layout = KeyboardLayouts.layoutFor(state.layer)
+        val layout = KeyboardLayouts.layoutFor(state.layer, state.inputMode)
         val colors = KeyboardThemeProvider.themeFor(state.layer, this)
         // Only direct-alnum mode is excluded from this: romaji composing ignores shift for
         // casing (kana has no case, see onKeyChar), so showing uppercase key glyphs there
