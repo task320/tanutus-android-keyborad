@@ -57,10 +57,18 @@ class MozcKanaConverter(context: Context) : KanaConverter {
      * unconverted reading), there's no segment to isolate, so it falls back to the same full
      * ENTER commit as [commit].
      */
-    override fun commitFocusedSegment(): SegmentCommit {
-        val focusedId = candidateWords.getOrNull(composition.candidateIndex)?.id
+    override fun commitFocusedSegment(): SegmentCommit = commitCandidate(composition.candidateIndex)
+
+    /**
+     * Backs both [commitFocusedSegment] and the candidate bar's tap-to-select: submitting by
+     * [ProtoCandidateWindow.CandidateWord.id] (not the bar's display index, which is unrelated —
+     * see commands.proto) is what lets [index] be *any* candidate, not just whichever one Mozc
+     * currently has focused.
+     */
+    override fun commitCandidate(index: Int): SegmentCommit {
+        val id = candidateWords.getOrNull(index)?.id
         val output =
-            if (focusedId != null) {
+            if (id != null) {
                 send(
                     ProtoCommands.Input.newBuilder()
                         .setType(ProtoCommands.Input.CommandType.SEND_COMMAND)
@@ -68,7 +76,7 @@ class MozcKanaConverter(context: Context) : KanaConverter {
                         .setCommand(
                             ProtoCommands.SessionCommand.newBuilder()
                                 .setType(ProtoCommands.SessionCommand.CommandType.SUBMIT_CANDIDATE)
-                                .setId(focusedId),
+                                .setId(id),
                         ),
                 )
             } else {

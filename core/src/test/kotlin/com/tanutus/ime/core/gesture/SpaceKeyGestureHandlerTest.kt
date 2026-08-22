@@ -29,6 +29,8 @@ private class FakeKanaConverter(private var composing: Boolean) : KanaConverter 
 
     override fun commitFocusedSegment(): SegmentCommit = SegmentCommit(commit(), null)
 
+    override fun commitCandidate(index: Int): SegmentCommit = SegmentCommit(commit(), null)
+
     override fun dropLast(): Composition = currentComposition()
 
     override fun hasActiveComposition(): Boolean = composing

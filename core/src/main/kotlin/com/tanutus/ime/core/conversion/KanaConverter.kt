@@ -56,6 +56,14 @@ interface KanaConverter {
      */
     fun commitFocusedSegment(): SegmentCommit
 
+    /**
+     * Confirms the candidate at [index] into [Composition.candidates] specifically — this backs
+     * the candidate bar itself, where tapping a chip should convert to *that* candidate rather
+     * than whatever the engine currently has focused. Otherwise behaves exactly like
+     * [commitFocusedSegment] (including the segment-by-segment [SegmentCommit.remaining]).
+     */
+    fun commitCandidate(index: Int): SegmentCommit
+
     /** Undo the most recently resolved unit (a whole kana segment, or one pending raw char). */
     fun dropLast(): Composition
 

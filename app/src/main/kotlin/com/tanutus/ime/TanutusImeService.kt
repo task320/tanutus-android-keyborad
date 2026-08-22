@@ -9,6 +9,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.tanutus.ime.core.conversion.Composition
 import com.tanutus.ime.core.conversion.KanaConverter
+import com.tanutus.ime.core.conversion.SegmentCommit
 import com.tanutus.ime.core.conversion.ZenkakuHankakuConverter
 import com.tanutus.ime.core.gesture.SpaceKeyActions
 import com.tanutus.ime.core.gesture.SpaceKeyGestureHandler
@@ -64,7 +65,7 @@ class TanutusImeService :
     override fun onCreateInputView(): View {
         candidateBarView =
             CandidateBarView(this).apply {
-                onCandidateSelected = { commitActiveComposition() }
+                onCandidateSelected = { index -> commitCandidate(index) }
             }
         keyboardView =
             KeyboardView(this).apply {
@@ -276,8 +277,16 @@ class TanutusImeService :
      * instead of every segment past the first getting auto-committed with whatever candidate
      * Mozc defaulted to.
      */
-    private fun commitFocusedSegment() {
-        val step = kanaConverter.commitFocusedSegment()
+    private fun commitFocusedSegment() = applySegmentCommit(kanaConverter.commitFocusedSegment())
+
+    /**
+     * Confirms the candidate at [index] specifically — what backs tapping a chip in the
+     * candidate bar (see [KanaConverter.commitCandidate]), as opposed to [commitFocusedSegment]
+     * which always confirms whatever the engine currently has focused.
+     */
+    private fun commitCandidate(index: Int) = applySegmentCommit(kanaConverter.commitCandidate(index))
+
+    private fun applySegmentCommit(step: SegmentCommit) {
         if (step.committedText.isNotEmpty()) {
             currentInputConnection?.commitText(step.committedText, 1)
         }

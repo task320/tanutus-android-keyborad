@@ -37,6 +37,9 @@ class RomajiHiraganaConverter : KanaConverter {
     // No segment concept without a real conversion engine — same as a full commit.
     override fun commitFocusedSegment(): SegmentCommit = SegmentCommit(commit(), null)
 
+    // Only one candidate ever exists here, so which index was tapped doesn't matter.
+    override fun commitCandidate(index: Int): SegmentCommit = SegmentCommit(commit(), null)
+
     override fun dropLast(): Composition {
         if (buffer.isNotEmpty()) {
             buffer.deleteCharAt(buffer.length - 1)
