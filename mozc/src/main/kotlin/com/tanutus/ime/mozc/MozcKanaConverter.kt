@@ -3,6 +3,7 @@ package com.tanutus.ime.mozc
 import android.content.Context
 import com.tanutus.ime.core.conversion.Composition
 import com.tanutus.ime.core.conversion.KanaConverter
+import org.mozc.android.inputmethod.japanese.protobuf.ProtoCandidateWindow
 import org.mozc.android.inputmethod.japanese.protobuf.ProtoCommands
 
 /**
@@ -96,8 +97,21 @@ class MozcKanaConverter(context: Context) : KanaConverter {
             } else {
                 ""
             }
+        // Mozc computes zero-query SUGGESTION candidates on every keystroke (for a separate
+        // autocomplete-style strip real clients show above the keyboard), not just after an
+        // explicit conversion request. Treating those as *the* candidate list would make
+        // Composition.currentCandidate — and so the text this app actually composes — jump to
+        // an unrelated suggestion the moment one exists (e.g. from user history), instead of
+        // the literal reading the user is typing. Only a real conversion (triggered by
+        // nextCandidate()'s SPACE, see the class doc) should drive candidate selection.
         val candidateWords =
-            if (output.hasAllCandidateWords()) output.allCandidateWords.candidatesList else emptyList()
+            if (output.hasAllCandidateWords() &&
+                output.allCandidateWords.category != ProtoCandidateWindow.Category.SUGGESTION
+            ) {
+                output.allCandidateWords.candidatesList
+            } else {
+                emptyList()
+            }
         val candidates =
             when {
                 candidateWords.isNotEmpty() -> candidateWords.map { it.value }
@@ -105,7 +119,7 @@ class MozcKanaConverter(context: Context) : KanaConverter {
                 else -> emptyList()
             }
         val candidateIndex =
-            if (output.hasAllCandidateWords()) {
+            if (candidateWords.isNotEmpty()) {
                 output.allCandidateWords.focusedIndex.toInt().coerceIn(0, (candidates.size - 1).coerceAtLeast(0))
             } else {
                 0

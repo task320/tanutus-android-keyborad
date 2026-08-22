@@ -38,16 +38,22 @@ object MozcEngine {
     /**
      * `libmozc.so` reads its dictionary from a plain file path, not an asset stream, so the
      * bundled asset is copied to app-private storage once and reused on subsequent launches.
+     *
+     * Uses `AssetManager.open()` (a decompressing stream), not `openFd()`: AAPT compresses an
+     * 18MB asset like this one by default, and `openFd()` — which hands back a raw, seekable
+     * file descriptor into the APK — only works for entries stored uncompressed. Copying to a
+     * `.tmp` file and renaming only after a full copy also makes this self-healing: a process
+     * killed mid-copy leaves no file at [dataFile]'s path, so the next launch retries cleanly.
      */
     private fun extractDataFileIfNeeded(context: Context): File {
         val dataFile = File(context.filesDir, DATA_ASSET_NAME)
-        val assetSize = context.assets.openFd(DATA_ASSET_NAME).use { it.length }
-        if (dataFile.exists() && dataFile.length() == assetSize) {
-            return dataFile
-        }
+        if (dataFile.exists()) return dataFile
+
+        val tempFile = File(context.filesDir, "$DATA_ASSET_NAME.tmp")
         context.assets.open(DATA_ASSET_NAME).use { input ->
-            dataFile.outputStream().use { output -> input.copyTo(output) }
+            tempFile.outputStream().use { output -> input.copyTo(output) }
         }
+        check(tempFile.renameTo(dataFile)) { "Failed to move $tempFile to $dataFile" }
         return dataFile
     }
 }
