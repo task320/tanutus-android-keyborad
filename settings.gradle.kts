@@ -18,3 +18,4 @@ rootProject.name = "tanutus-android-keyborad"
 
 include(":app")
 include(":core")
+include(":mozc")

@@ -1,0 +1,2 @@
+mozc/src/main/jniLibs/**/*.so filter=lfs diff=lfs merge=lfs -text
+mozc/src/main/assets/mozc.data filter=lfs diff=lfs merge=lfs -text
