@@ -25,8 +25,8 @@ sealed interface StateEvent {
     /** Tap the shift key: OFF -> MOMENTARY, MOMENTARY -> OFF, LOCKED -> OFF. */
     data object ShiftTap : StateEvent
 
-    /** Long-press the shift key: toggles the LOCKED state on/off. */
-    data object ShiftLongPress : StateEvent
+    /** Double-tap the shift key (two quick taps): toggles the LOCKED state on/off. */
+    data object ShiftDoubleTap : StateEvent
 
     /** Tap the layer-toggle key: flips between the base and symbol layers. */
     data object LayerToggleTap : StateEvent
@@ -64,7 +64,7 @@ class KeyboardStateMachine(initial: KeyboardUiState = KeyboardUiState()) {
                         ShiftState.LOCKED -> before.copy(shift = ShiftState.OFF)
                     }
 
-                StateEvent.ShiftLongPress ->
+                StateEvent.ShiftDoubleTap ->
                     if (before.shift == ShiftState.LOCKED) {
                         before.copy(shift = ShiftState.OFF)
                     } else {

@@ -17,4 +17,7 @@
 
     <integer name="long_press_timeout_ms">500</integer>
     <integer name="backspace_repeat_interval_ms">60</integer>
+    <!-- Shift lock: two taps within this window count as a double-tap. Matches Android's
+         platform default (ViewConfiguration.getDoubleTapTimeout()). -->
+    <integer name="double_tap_timeout_ms">300</integer>
 </resources>

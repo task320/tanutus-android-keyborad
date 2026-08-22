@@ -21,7 +21,8 @@ interface KeyboardActionListener {
 
     fun onShiftTap()
 
-    fun onShiftLongPress()
+    /** Two quick taps on the shift key, i.e. the shift-lock gesture (see KeyboardView). */
+    fun onShiftDoubleTap()
 
     fun onLayerToggleTap()
 

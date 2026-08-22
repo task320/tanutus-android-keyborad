@@ -42,23 +42,23 @@ class KeyboardStateMachineTest {
 
     @Test
     fun `character committed does not affect locked shift`() {
-        machine.dispatch(StateEvent.ShiftLongPress)
+        machine.dispatch(StateEvent.ShiftDoubleTap)
         val transition = machine.dispatch(StateEvent.CharacterCommitted)
         assertEquals(ShiftState.LOCKED, transition.newState.shift)
     }
 
     @Test
-    fun `shift long press engages lock with haptic and updates fill visual`() {
-        val transition = machine.dispatch(StateEvent.ShiftLongPress)
+    fun `shift double tap engages lock with haptic and updates fill visual`() {
+        val transition = machine.dispatch(StateEvent.ShiftDoubleTap)
         assertEquals(ShiftState.LOCKED, transition.newState.shift)
         assertTrue(transition.hapticFeedback)
         assertTrue(machine.isLockedVisual(KeyAction.Shift))
     }
 
     @Test
-    fun `shift long press again disengages lock with haptic`() {
-        machine.dispatch(StateEvent.ShiftLongPress)
-        val transition = machine.dispatch(StateEvent.ShiftLongPress)
+    fun `shift double tap again disengages lock with haptic`() {
+        machine.dispatch(StateEvent.ShiftDoubleTap)
+        val transition = machine.dispatch(StateEvent.ShiftDoubleTap)
         assertEquals(ShiftState.OFF, transition.newState.shift)
         assertTrue(transition.hapticFeedback)
         assertFalse(machine.isLockedVisual(KeyAction.Shift))
@@ -66,7 +66,7 @@ class KeyboardStateMachineTest {
 
     @Test
     fun `shift tap while locked exits to off with haptic since fill visual changes`() {
-        machine.dispatch(StateEvent.ShiftLongPress)
+        machine.dispatch(StateEvent.ShiftDoubleTap)
         val transition = machine.dispatch(StateEvent.ShiftTap)
         assertEquals(ShiftState.OFF, transition.newState.shift)
         assertTrue(transition.hapticFeedback)
@@ -100,7 +100,7 @@ class KeyboardStateMachineTest {
     @Test
     fun `returning to romaji mode drops a locked or momentary shift`() {
         machine.dispatch(StateEvent.RomajiToggleTap) // -> DIRECT_ALNUM
-        machine.dispatch(StateEvent.ShiftLongPress) // -> LOCKED
+        machine.dispatch(StateEvent.ShiftDoubleTap) // -> LOCKED
 
         val backToRomaji = machine.dispatch(StateEvent.RomajiToggleTap)
         assertEquals(InputMode.ROMAJI, backToRomaji.newState.inputMode)
@@ -124,7 +124,7 @@ class KeyboardStateMachineTest {
     @Test
     fun `non-toggle key actions are never shown as filled`() {
         machine.dispatch(StateEvent.LayerToggleTap)
-        machine.dispatch(StateEvent.ShiftLongPress)
+        machine.dispatch(StateEvent.ShiftDoubleTap)
         assertFalse(machine.isLockedVisual(KeyAction.Char('a')))
         assertFalse(machine.isLockedVisual(KeyAction.Space))
         assertFalse(machine.isLockedVisual(KeyAction.Enter))

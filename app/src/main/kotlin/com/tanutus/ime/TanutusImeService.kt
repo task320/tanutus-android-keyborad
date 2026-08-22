@@ -160,7 +160,7 @@ class TanutusImeService :
 
     override fun onShiftTap() = applyStateEvent(StateEvent.ShiftTap)
 
-    override fun onShiftLongPress() = applyStateEvent(StateEvent.ShiftLongPress)
+    override fun onShiftDoubleTap() = applyStateEvent(StateEvent.ShiftDoubleTap)
 
     override fun onLayerToggleTap() = applyStateEvent(StateEvent.LayerToggleTap)
 

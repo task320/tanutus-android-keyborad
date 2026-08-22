@@ -8,6 +8,7 @@ import android.graphics.RectF
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
@@ -62,10 +63,12 @@ class KeyboardView
         private val interactionHandler = Handler(Looper.getMainLooper())
         private val longPressTimeoutMs = resources.getInteger(R.integer.long_press_timeout_ms).toLong()
         private val backspaceRepeatIntervalMs = resources.getInteger(R.integer.backspace_repeat_interval_ms).toLong()
+        private val doubleTapTimeoutMs = resources.getInteger(R.integer.double_tap_timeout_ms).toLong()
 
         private var pressedKey: KeyDef? = null
         private var longPressHandled = false
         private val longPressRunnable = Runnable { onLongPressTriggered() }
+        private var lastShiftTapUptimeMs = 0L
         private val backspaceRepeatRunnable =
             object : Runnable {
                 override fun run() {
@@ -226,7 +229,7 @@ class KeyboardView
         private fun handleGenericDown(key: KeyDef) {
             pressedKey = key
             longPressHandled = false
-            if (key.action == KeyAction.Shift || key.action == KeyAction.RomajiToggle || key.action == KeyAction.Backspace) {
+            if (key.action == KeyAction.RomajiToggle || key.action == KeyAction.Backspace) {
                 interactionHandler.postDelayed(longPressRunnable, longPressTimeoutMs)
             }
         }
@@ -234,7 +237,6 @@ class KeyboardView
         private fun onLongPressTriggered() {
             longPressHandled = true
             when (pressedKey?.action) {
-                KeyAction.Shift -> keyboardActionListener?.onShiftLongPress()
                 KeyAction.RomajiToggle -> keyboardActionListener?.onRomajiToggleLongPress()
                 KeyAction.Backspace -> {
                     keyboardActionListener?.onBackspace()
@@ -267,11 +269,27 @@ class KeyboardView
                 is KeyAction.ShiftPair -> listener.onShiftPairKey(action)
                 is KeyAction.Punctuation -> listener.onPunctuationKey(action.char)
                 KeyAction.Backspace -> listener.onBackspace()
-                KeyAction.Shift -> listener.onShiftTap()
+                KeyAction.Shift -> dispatchShiftTap(listener)
                 KeyAction.LayerToggle -> listener.onLayerToggleTap()
                 KeyAction.RomajiToggle -> listener.onRomajiToggleTap()
                 KeyAction.Enter -> listener.onEnter()
                 KeyAction.Space -> Unit // space is handled entirely via the gesture path above
             }
+        }
+
+        /**
+         * Shift-lock is two quick taps rather than a long-press (see docs/keyboard-spec.md). A
+         * tap within [doubleTapTimeoutMs] of the previous one is the lock gesture *instead of*
+         * an ordinary tap (not in addition to one) — dispatching both would let the first tap's
+         * own state change (e.g. LOCKED -> OFF, since a single tap already exits the lock) throw
+         * off what "double-tap" toggles from. [lastShiftTapUptimeMs] resets to 0 after consuming
+         * a double-tap so a third quick tap starts a fresh pair rather than chaining into
+         * another lock toggle.
+         */
+        private fun dispatchShiftTap(listener: KeyboardActionListener) {
+            val now = SystemClock.uptimeMillis()
+            val isDoubleTap = lastShiftTapUptimeMs != 0L && now - lastShiftTapUptimeMs <= doubleTapTimeoutMs
+            lastShiftTapUptimeMs = if (isDoubleTap) 0L else now
+            if (isDoubleTap) listener.onShiftDoubleTap() else listener.onShiftTap()
         }
     }
