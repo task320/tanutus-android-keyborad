@@ -120,6 +120,19 @@ class TanutusImeService :
         refreshKeyboardView()
     }
 
+    /**
+     * Now that punctuation can join a pending composition instead of always force-committing it
+     * (see [onPunctuationKey]), a composition can be left pending right up until the keyboard is
+     * dismissed — e.g. the user finishes with "。" and then taps outside the field, or switches
+     * apps, without another keystroke to flush it. [onStartInputView]'s `kanaConverter.reset()`
+     * discards state silently, so without this the pending text would just vanish; committing it
+     * here, before the view actually goes away, keeps that from being a data-loss trap.
+     */
+    override fun onFinishInputView(finishingInput: Boolean) {
+        commitActiveComposition()
+        super.onFinishInputView(finishingInput)
+    }
+
     // region KeyboardActionListener
 
     override fun onKeyChar(char: Char) {
@@ -153,10 +166,15 @@ class TanutusImeService :
     }
 
     override fun onPunctuationKey(char: Char) {
-        // 句点/読点 end a sentence — commit whatever romaji composition is pending first
-        // rather than feeding the mark into it, so it lands as its own character.
-        commitActiveComposition()
-        currentInputConnection?.commitText(char.toString(), 1)
+        // 句点/読点 join a pending romaji composition instead of force-committing it (matching
+        // the chōon fix in onShiftPairKey): the user may still be mid-word, and typing
+        // punctuation shouldn't silently finalize whatever candidate happened to be selected.
+        // With nothing pending, there's no composition to preserve, so it just commits directly.
+        if (kanaConverter.hasActiveComposition()) {
+            onCompositionUpdated(kanaConverter.input(char))
+        } else {
+            currentInputConnection?.commitText(char.toString(), 1)
+        }
         consumeMomentaryShift()
     }
 
