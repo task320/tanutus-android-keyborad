@@ -236,7 +236,12 @@ class TanutusImeService :
     private fun commitLiteralChar(char: Char, alreadyCased: Boolean = false) {
         val state = stateMachine.state
         var output = if (!alreadyCased && state.shift != ShiftState.OFF) char.uppercaseChar() else char
-        if (state.zenkaku) output = ZenkakuHankakuConverter.toZenkaku(output)
+        // Layer 2 (digits/symbols) in romaji mode is always full-width, independent of the
+        // manual zenkaku toggle (which still governs direct-alnum mode as before): numbers and
+        // punctuation typed while composing Japanese text should match the surrounding
+        // full-width text rather than defaulting to half-width ASCII.
+        val useZenkaku = state.zenkaku || (state.layer == Layer.SYMBOL && state.inputMode == InputMode.ROMAJI)
+        if (useZenkaku) output = ZenkakuHankakuConverter.toZenkaku(output)
         currentInputConnection?.commitText(output.toString(), 1)
         consumeMomentaryShift()
     }
