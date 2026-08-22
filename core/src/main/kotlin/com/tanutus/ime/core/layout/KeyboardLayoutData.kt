@@ -102,7 +102,7 @@ object KeyboardLayouts {
             KeyRow(
                 "qwertyuiop".map { charKey("key_$it", it) } + BACKSPACE_KEY,
             ),
-            KeyRow("asdfghjkl".map { charKey("key_$it", it) }),
+            KeyRow("asdfghjkl".map { charKey("key_$it", it) }, centered = true),
             KeyRow("zxcvbnm".map { charKey("key_$it", it) }, centered = true),
         )
 
