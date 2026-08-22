@@ -23,6 +23,15 @@ data class Composition(
 }
 
 /**
+ * Result of confirming just the currently-focused unit of a composition — see
+ * [KanaConverter.commitFocusedSegment]. [committedText] is what should be inserted into the
+ * document right now. [remaining], when non-null, is the composition still pending after that
+ * partial commit (e.g. a multi-segment Mozc conversion where only the first segment was just
+ * confirmed and the rest are still awaiting their own conversion); null means nothing is left.
+ */
+data class SegmentCommit(val committedText: String, val remaining: Composition?)
+
+/**
  * Converts raw key input into composed text. This is the seam a real kana-kanji conversion
  * engine plugs into later; nothing above this interface (gesture handling, the IME service)
  * needs to know whether the implementation behind it is the placeholder romaji table in this
@@ -35,8 +44,17 @@ interface KanaConverter {
     /** Advance to the next candidate for the current composition (no-op if there's only one). */
     fun nextCandidate(): Composition
 
-    /** Finalize the current composition, returning the committed text, and clear state. */
+    /** Finalize the entire pending composition, returning the committed text, and clear state. */
     fun commit(): String
+
+    /**
+     * Confirms only the currently-focused unit rather than everything pending (see [commit] for
+     * "confirm all and reset"). This is what lets a multi-segment conversion be stepped through
+     * one segment at a time: convert the first segment, confirm it, the rest stays composing
+     * for its own conversion, repeat until nothing is left. A converter with no segment concept
+     * (the romaji placeholder) behaves the same as [commit], with `remaining = null`.
+     */
+    fun commitFocusedSegment(): SegmentCommit
 
     /** Undo the most recently resolved unit (a whole kana segment, or one pending raw char). */
     fun dropLast(): Composition

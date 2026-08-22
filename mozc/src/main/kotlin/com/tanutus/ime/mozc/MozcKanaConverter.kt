@@ -3,6 +3,7 @@ package com.tanutus.ime.mozc
 import android.content.Context
 import com.tanutus.ime.core.conversion.Composition
 import com.tanutus.ime.core.conversion.KanaConverter
+import com.tanutus.ime.core.conversion.SegmentCommit
 import org.mozc.android.inputmethod.japanese.protobuf.ProtoCandidateWindow
 import org.mozc.android.inputmethod.japanese.protobuf.ProtoCommands
 
@@ -26,6 +27,11 @@ class MozcKanaConverter(context: Context) : KanaConverter {
     private val rawInputBuffer = StringBuilder()
     private var composition = Composition(rawInput = "", text = "")
 
+    // The candidate list's ids (distinct from CandidateWord.index — see commands.proto), kept
+    // alongside composition.candidates so commitFocusedSegment() can tell Mozc *which* candidate
+    // the focused one is via SessionCommand.SUBMIT_CANDIDATE.
+    private var candidateWords: List<ProtoCandidateWindow.CandidateWord> = emptyList()
+
     override fun input(char: Char): Composition {
         rawInputBuffer.append(char)
         val output = sendKey(ProtoCommands.KeyEvent.newBuilder().setKeyCode(char.code))
@@ -42,6 +48,43 @@ class MozcKanaConverter(context: Context) : KanaConverter {
         val result = if (output.hasResult()) output.result.value else composition.text
         reset()
         return result
+    }
+
+    /**
+     * Confirms only the focused candidate's segment via `SessionCommand.SUBMIT_CANDIDATE` — the
+     * mechanism Mozc's own docs describe for "mobile IME's partial conversion" — instead of the
+     * whole-composition ENTER used by [commit]. With no real candidate list (e.g. Enter on a raw,
+     * unconverted reading), there's no segment to isolate, so it falls back to the same full
+     * ENTER commit as [commit].
+     */
+    override fun commitFocusedSegment(): SegmentCommit {
+        val focusedId = candidateWords.getOrNull(composition.candidateIndex)?.id
+        val output =
+            if (focusedId != null) {
+                send(
+                    ProtoCommands.Input.newBuilder()
+                        .setType(ProtoCommands.Input.CommandType.SEND_COMMAND)
+                        .setId(sessionId)
+                        .setCommand(
+                            ProtoCommands.SessionCommand.newBuilder()
+                                .setType(ProtoCommands.SessionCommand.CommandType.SUBMIT_CANDIDATE)
+                                .setId(focusedId),
+                        ),
+                )
+            } else {
+                sendKey(specialKey(ProtoCommands.KeyEvent.SpecialKey.ENTER))
+            }
+        val committedText = if (output.hasResult()) output.result.value else ""
+        val stillComposing = output.hasPreedit() && output.preedit.segmentList.isNotEmpty()
+        return if (stillComposing) {
+            SegmentCommit(committedText, applyOutput(output))
+        } else {
+            // Nothing left pending: fall back to whatever was showing if this particular
+            // response carried no explicit Result, so a partial commit never silently drops text.
+            val fallback = committedText.ifEmpty { composition.text }
+            reset()
+            SegmentCommit(fallback, null)
+        }
     }
 
     override fun dropLast(): Composition {
@@ -63,6 +106,7 @@ class MozcKanaConverter(context: Context) : KanaConverter {
         }
         rawInputBuffer.clear()
         composition = Composition(rawInput = "", text = "")
+        candidateWords = emptyList()
     }
 
     private fun specialKey(key: ProtoCommands.KeyEvent.SpecialKey): ProtoCommands.KeyEvent.Builder =
@@ -104,7 +148,7 @@ class MozcKanaConverter(context: Context) : KanaConverter {
         // an unrelated suggestion the moment one exists (e.g. from user history), instead of
         // the literal reading the user is typing. Only a real conversion (triggered by
         // nextCandidate()'s SPACE, see the class doc) should drive candidate selection.
-        val candidateWords =
+        candidateWords =
             if (output.hasAllCandidateWords() &&
                 output.allCandidateWords.category != ProtoCandidateWindow.Category.SUGGESTION
             ) {

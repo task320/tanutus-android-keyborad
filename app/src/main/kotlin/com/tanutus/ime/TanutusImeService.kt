@@ -204,9 +204,12 @@ class TanutusImeService :
         // While romaji composition is active, Enter's first job is finalizing it — matching
         // every other Japanese IME's UX (and avoiding a half-typed reading getting submitted as
         // the literal query/text). The editor action (search, newline, ...) only fires on a
-        // second, separate Enter press once nothing is left to commit.
+        // second, separate Enter press once nothing is left to commit. For a multi-segment
+        // conversion, one Enter press confirms only the focused segment (see
+        // commitFocusedSegment): the rest keeps composing so it can be converted on its own,
+        // rather than every segment beyond the first getting silently auto-committed at once.
         if (kanaConverter.hasActiveComposition()) {
-            commitActiveComposition()
+            commitFocusedSegment()
         } else {
             val action = enterKeyBehavior.editorAction
             if (action != EditorInfo.IME_ACTION_NONE) {
@@ -250,7 +253,13 @@ class TanutusImeService :
 
     override fun onCompositionUpdated(composition: Composition) {
         candidateBarView.setCandidates(composition.candidates, composition.candidateIndex)
-        currentInputConnection?.setComposingText(composition.currentCandidate, 1)
+        // composition.text (not currentCandidate) is what belongs in the composing span: for a
+        // multi-segment Mozc conversion, currentCandidate is only the focused segment's word, and
+        // setComposingText replaces the *entire* span — using it here would make every segment
+        // but the focused one disappear from view mid-conversion. text is Mozc's own preedit
+        // (all segments, with the focused one already reflecting its current candidate), which
+        // is the right thing to show whether one segment is composing or many.
+        currentInputConnection?.setComposingText(composition.text, 1)
     }
 
     // endregion
@@ -258,6 +267,25 @@ class TanutusImeService :
     private fun commitActiveComposition() {
         if (kanaConverter.hasActiveComposition()) {
             commitComposedText(kanaConverter.commit())
+        }
+    }
+
+    /**
+     * Confirms just the currently-focused segment (see [KanaConverter.commitFocusedSegment]) —
+     * used by Enter so a multi-segment conversion can be stepped through one segment at a time
+     * instead of every segment past the first getting auto-committed with whatever candidate
+     * Mozc defaulted to.
+     */
+    private fun commitFocusedSegment() {
+        val step = kanaConverter.commitFocusedSegment()
+        if (step.committedText.isNotEmpty()) {
+            currentInputConnection?.commitText(step.committedText, 1)
+        }
+        val remaining = step.remaining
+        if (remaining != null) {
+            onCompositionUpdated(remaining)
+        } else {
+            candidateBarView.setCandidates(emptyList(), 0)
         }
     }
 

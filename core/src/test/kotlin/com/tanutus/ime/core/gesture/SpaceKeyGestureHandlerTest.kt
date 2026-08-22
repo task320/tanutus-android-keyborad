@@ -2,6 +2,7 @@ package com.tanutus.ime.core.gesture
 
 import com.tanutus.ime.core.conversion.Composition
 import com.tanutus.ime.core.conversion.KanaConverter
+import com.tanutus.ime.core.conversion.SegmentCommit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -25,6 +26,8 @@ private class FakeKanaConverter(private var composing: Boolean) : KanaConverter 
         composing = false
         return "committed"
     }
+
+    override fun commitFocusedSegment(): SegmentCommit = SegmentCommit(commit(), null)
 
     override fun dropLast(): Composition = currentComposition()
 
