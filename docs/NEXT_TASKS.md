@@ -60,16 +60,20 @@
 
 ## 将来タスク
 
-- [ ] **Mozcエンジン統合**。実装まで完了済み(2026-08-22、詳細は
+- [x] **Mozcエンジン統合**。実装・実機検証まで完了(2026-08-22、詳細は
       [mozc-integration-feasibility.md](mozc-integration-feasibility.md)):新規`:mozc`
       モジュールに、WSL2ビルドの`libmozc.so`(全4 ABI、Git LFS管理)・`mozc.data`辞書
       (Git LFS管理)・`protocol/*.proto`のGradle protobuf-liteビルド・JNIブリッジ
       (`MozcJNI`)・`KanaConverter`実装(`MozcKanaConverter`、SEND_KEY/SPACE変換/ENTER確定の
-      セッションプロトコルを使用)を実装。`:app`が`:mozc`に依存し、APKビルドは成功
-      (`app-debug.apk`、全4 ABI込みで約76MB)。**未着手**: `TanutusImeService`の
-      デフォルトを`RomajiHiraganaConverter`から`MozcKanaConverter`へ切り替えること、
-      および実機/エミュレータでの実際の変換動作確認(セッションプロトコルの実装は
-      ソースコード上の理解に基づくもので、実機で一度も動かしていない)。
+      セッションプロトコルを使用)を実装し、`TanutusImeService`のデフォルトを
+      `RomajiHiraganaConverter`から切り替え済み。実機(Pixel 9a)で、ローマ字→ひらがな変換・
+      実辞書によるかな漢字変換候補・次候補への移動・Enterでの確定(Google検索への投入まで)
+      を一通り確認。検証中に見つけた実バグ2件も修正済み:
+      (1) `mozc.data`アセットが圧縮されており`openFd()`が失敗してIMEが起動時クラッシュ
+      (`AssetManager.open()`のストリームコピーに変更)、
+      (2) Mozcが毎打鍵ごとに計算する自動サジェスト(`category: SUGGESTION`)を通常の変換候補と
+      区別せず扱っていたため、変換前から無関係な候補(特に汚染されたユーザー履歴)が
+      表示されることがあった(SUGGESTION候補を除外するよう修正)。
 
 ## ビルド・テストコマンド
 
