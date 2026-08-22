@@ -6,8 +6,10 @@
 ## 結論
 
 一番リスクが高かった「本家`google/mozc`が本当にAndroid向けにビルドできるか」は**実証済み**。
-WSL2(Ubuntu 22.04)+ Bazel + Android NDKで`libmozc.so`(4アーキテクチャ全て)のビルドに成功した。
-辞書データセットのビルドはツールチェーン起因のエラーで未達成だが、致命的な壁ではない(下記参照)。
+WSL2(Ubuntu 22.04)+ Bazel + Android NDKで`libmozc.so`(4アーキテクチャ全て)、および
+変換に必要な辞書データセット(`mozc.data`、約18MB)の両方のビルドに成功した(追記:
+2026-08-22セッション後半、`CC=gcc-12`への切り替えでツールチェーン問題を解消)。
+ビルド面での大きな障害は現時点でなく、残るのはKotlin側の統合実装。
 
 ## 検証環境
 
@@ -75,12 +77,12 @@ Android向けクライアント(Java/UI)コードは本家では2021年頃に削
 の実装にマッピングする形になる。`data_file_path`が渡せない/読み込みに失敗した場合は
 自動的に「minimal engine」にフォールバックする実装になっている(`CreateMobileEngine`)。
 
-## 未解決の問題: 辞書データセットのビルド
+## 解決済みの問題: 辞書データセットのビルド(2026-08-22追記)
 
 変換エンジンが実際に「かな漢字変換」をするには、上記`dataFilePath`に渡す辞書データファイル
-(`//data_manager/oss:mozc_dataset_for_oss`)が別途必要。このビルドを試したところ、
-Android向け本体ビルドとは別の、**ホスト(Linux)側で動かすデータ生成ツールのコンパイル**で
-エラーになった:
+(`//data_manager/oss:mozc_dataset_for_oss`)が別途必要。最初の試行(`CC=clang`、
+Ubuntu標準のclang-14)では、Android向け本体ビルドとは別の、**ホスト(Linux)側で動かす
+データ生成ツールのコンパイル**でエラーになった:
 
 ```
 dictionary/file/codec.cc:197:15: error: no matching function for call to 'construct_at'
@@ -89,19 +91,45 @@ Target //data_manager/oss:mozc_dataset_for_oss failed to build
 
 原因はclang-14(Ubuntu 22.04標準)とGCC 11のlibstdc++ヘッダの組み合わせによる非互換と
 見られる(C++20の`construct_at`まわり)。Android向け本体ビルド(NDK付属のclangを使う
-クロスコンパイル)は影響を受けず成功しているため、**アーキテクチャ上の壁ではなく
-ホスト側ビルド環境のツールチェーンのバージョン不一致**という位置付け。新しいclang
-(clang-16以降など)かGCCをインストールして`CC`を切り替えれば解決する可能性が高いが、
-今回は未検証(時間の都合で未着手)。
+クロスコンパイル)は影響を受けず成功していたため、アーキテクチャ上の壁ではなくホスト側
+ビルド環境のツールチェーンのバージョン不一致と判断。
+
+**対処**: `sudo apt-get install -y g++-12`でGCC 12を導入し、`export CC=gcc-12`に
+切り替えて再ビルドしたところ成功した:
+
+```bash
+sudo apt-get install -y g++-12   # ユーザー側で実行(sudo必要)
+
+export CC=gcc-12
+cd ~/work/mozc/src
+bazelisk build //data_manager/oss:mozc_dataset_for_oss --config oss_linux
+```
+
+```
+Target //data_manager/oss:mozc_dataset_for_oss up-to-date:
+  bazel-bin/data_manager/oss/mozc.data
+INFO: Elapsed time: 145.042s
+INFO: Build completed successfully, 344 total actions
+```
+
+生成物: `bazel-bin/data_manager/oss/mozc.data`(18,855,160 bytes ≈ 18MB)。
+ビルド中に出る`E0000 ... Failed to create directory: /home/*/.mozc: PERMISSION_DENIED`
+は、サンドボックス内でユーザープロファイルディレクトリを作ろうとして失敗している無害な
+警告で、ビルド結果には影響しない(Target up-to-dateで成功している)。
+
+なお`//:package`(libmozc.so本体、`android/jni:native_libs`)のビルドは`CC=clang`
+(clang-14)のままで最初から成功していた。`CC=gcc-12`に統一しても影響はない見込みだが、
+未検証。
 
 ## 次回セッションへの引き継ぎ(未着手・優先度つけず列挙のみ)
 
-- 辞書データセット(`mozc_dataset_for_oss`)ビルドのツールチェーン問題の解消
-- 生成した辞書データ(サイズ未計測、数十MB程度が見込まれる)を`:app`のアセットとして同梱する方法の検討
+- 生成した辞書データ(`mozc.data`、約18MB)+ `libmozc.so`(4 ABI合計 約58MB)を
+  `:app`のアセットとして同梱する方法の検討、APKサイズへの影響確認
 - `protocol/commands.proto`をKotlin/Java側でビルドし、`evalCommand`とやり取りするラッパー実装
 - 既存の`KanaConverter`インターフェースへ、Mozc版実装(`MozcKanaConverter`のようなクラス)を接続
 - ライセンス確認: Mozc本体はBSD-3-Clauseで組み込みに問題なし(要事前確認だが今回は未実施)
-- `libmozc.so`(4 ABI合計 約58MB)+辞書データをAPKに含めた場合のアプリサイズへの影響確認
+- 実機での動作確認(WSLでのビルド確認のみで、Android実機/エミュレータでの`.so`ロード・
+  変換動作はまだ試していない)
 
 ## ビルド生成物の後始末
 
