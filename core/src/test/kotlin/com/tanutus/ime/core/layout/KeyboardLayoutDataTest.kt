@@ -26,12 +26,12 @@ class KeyboardLayoutDataTest {
         val alnumBase = KeyboardLayouts.BASE_LAYOUT_ALNUM.rows.map { it.keys.size }
         val alnumSymbol = KeyboardLayouts.SYMBOL_LAYOUT_ALNUM.rows.map { it.keys.size }
         assertEquals(listOf(11, 9, 7, 5), alnumBase)
-        assertEquals(listOf(11, 9, 7, 5), alnumSymbol)
+        assertEquals(listOf(11, 9, 8, 5), alnumSymbol)
 
         val romajiBase = KeyboardLayouts.BASE_LAYOUT_ROMAJI.rows.map { it.keys.size }
         val romajiSymbol = KeyboardLayouts.SYMBOL_LAYOUT_ROMAJI.rows.map { it.keys.size }
         assertEquals(listOf(11, 9, 7, 6), romajiBase)
-        assertEquals(listOf(11, 9, 7, 6), romajiSymbol)
+        assertEquals(listOf(11, 9, 8, 6), romajiSymbol)
     }
 
     @Test

@@ -129,6 +129,7 @@ object KeyboardLayouts {
                     charKey("key_hash", '#'),
                     charKey("key_asterisk", '*'),
                     charKey("key_plus", '+'),
+                    charKey("key_lt", '<'),
                     charKey("key_gt", '>'),
                     charKey("key_backtick", '`'),
                     charKey("key_tilde", '~'),
