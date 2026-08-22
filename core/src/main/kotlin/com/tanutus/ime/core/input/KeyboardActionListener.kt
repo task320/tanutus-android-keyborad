@@ -14,6 +14,9 @@ interface KeyboardActionListener {
     /** A layer-2 shift-pair key (`-`/`_`, `'`/`"`) was tapped; the listener resolves which glyph applies. */
     fun onShiftPairKey(pair: KeyAction.ShiftPair)
 
+    /** 句点/読点, shown flanking the space key only in romaji mode. */
+    fun onPunctuationKey(char: Char)
+
     fun onBackspace()
 
     fun onShiftTap()

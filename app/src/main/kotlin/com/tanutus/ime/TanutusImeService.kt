@@ -137,6 +137,14 @@ class TanutusImeService :
         commitLiteralChar(glyph, alreadyCased = true)
     }
 
+    override fun onPunctuationKey(char: Char) {
+        // 句点/読点 end a sentence — commit whatever romaji composition is pending first
+        // rather than feeding the mark into it, so it lands as its own character.
+        commitActiveComposition()
+        currentInputConnection?.commitText(char.toString(), 1)
+        consumeMomentaryShift()
+    }
+
     override fun onBackspace() {
         if (kanaConverter.hasActiveComposition()) {
             onCompositionUpdated(kanaConverter.dropLast())

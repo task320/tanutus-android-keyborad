@@ -30,8 +30,8 @@ class KeyboardLayoutDataTest {
 
         val romajiBase = KeyboardLayouts.BASE_LAYOUT_ROMAJI.rows.map { it.keys.size }
         val romajiSymbol = KeyboardLayouts.SYMBOL_LAYOUT_ROMAJI.rows.map { it.keys.size }
-        assertEquals(listOf(11, 9, 7, 4), romajiBase)
-        assertEquals(listOf(11, 9, 7, 4), romajiSymbol)
+        assertEquals(listOf(11, 9, 7, 6), romajiBase)
+        assertEquals(listOf(11, 9, 7, 6), romajiSymbol)
     }
 
     @Test
@@ -49,9 +49,16 @@ class KeyboardLayoutDataTest {
     }
 
     @Test
-    fun `romaji function row hides shift but keeps the rest in order`() {
+    fun `romaji function row hides shift but adds kuten and touten flanking space`() {
         assertEquals(
-            listOf(KeyAction.LayerToggle, KeyAction.Space, KeyAction.RomajiToggle, KeyAction.Enter),
+            listOf(
+                KeyAction.LayerToggle,
+                KeyAction.Punctuation('。'),
+                KeyAction.Space,
+                KeyAction.Punctuation('、'),
+                KeyAction.RomajiToggle,
+                KeyAction.Enter,
+            ),
             KeyboardLayouts.FUNCTION_ROW_ROMAJI.keys.map { it.action },
         )
     }

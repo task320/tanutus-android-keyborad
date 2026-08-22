@@ -15,6 +15,13 @@ sealed interface KeyAction {
     /** A key whose unshifted/shifted glyphs are two distinct characters (e.g. `-`/`_`, `'`/`"`). */
     data class ShiftPair(val base: kotlin.Char, val shifted: kotlin.Char) : KeyAction
 
+    /**
+     * A punctuation mark that always commits directly (ending any active romaji composition
+     * first), rather than being fed into [com.tanutus.ime.core.conversion.KanaConverter] like
+     * [Char] is in romaji mode — see [com.tanutus.ime.TanutusImeService.onPunctuationKey].
+     */
+    data class Punctuation(val char: kotlin.Char) : KeyAction
+
     data object Backspace : KeyAction
 
     data object Shift : KeyAction
@@ -65,11 +72,18 @@ object KeyboardLayouts {
             ),
         )
 
+    /**
+     * 句点/読点 flank the space key (kuten to its left, touten to its right) rather than
+     * living on a letter row, since they're only needed while composing Japanese — i.e.
+     * exactly when this romaji-mode row (as opposed to [FUNCTION_ROW_ALNUM]) is shown.
+     */
     val FUNCTION_ROW_ROMAJI: KeyRow =
         KeyRow(
             listOf(
                 KeyDef("layer_toggle", "#12", KeyAction.LayerToggle),
+                KeyDef("kuten", "。", KeyAction.Punctuation('。')),
                 KeyDef("space", " ", KeyAction.Space, widthWeight = 3f),
+                KeyDef("touten", "、", KeyAction.Punctuation('、')),
                 KeyDef("romaji_toggle", "A/あ", KeyAction.RomajiToggle),
                 KeyDef("enter", "Enter", KeyAction.Enter),
             ),

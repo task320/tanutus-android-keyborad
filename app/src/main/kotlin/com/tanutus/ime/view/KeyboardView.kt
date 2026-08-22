@@ -260,6 +260,7 @@ class KeyboardView
             when (val action = key.action) {
                 is KeyAction.Char -> listener.onKeyChar(action.char)
                 is KeyAction.ShiftPair -> listener.onShiftPairKey(action)
+                is KeyAction.Punctuation -> listener.onPunctuationKey(action.char)
                 KeyAction.Backspace -> listener.onBackspace()
                 KeyAction.Shift -> listener.onShiftTap()
                 KeyAction.LayerToggle -> listener.onLayerToggleTap()
