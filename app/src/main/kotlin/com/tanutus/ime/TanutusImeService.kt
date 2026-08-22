@@ -173,13 +173,20 @@ class TanutusImeService :
     override fun onRomajiToggleLongPress() = applyStateEvent(StateEvent.RomajiToggleLongPress)
 
     override fun onEnter() {
-        commitActiveComposition()
-        val action = enterKeyBehavior.editorAction
-        if (action != EditorInfo.IME_ACTION_NONE) {
-            currentInputConnection?.performEditorAction(action)
+        // While romaji composition is active, Enter's first job is finalizing it — matching
+        // every other Japanese IME's UX (and avoiding a half-typed reading getting submitted as
+        // the literal query/text). The editor action (search, newline, ...) only fires on a
+        // second, separate Enter press once nothing is left to commit.
+        if (kanaConverter.hasActiveComposition()) {
+            commitActiveComposition()
         } else {
-            currentInputConnection?.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
-            currentInputConnection?.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
+            val action = enterKeyBehavior.editorAction
+            if (action != EditorInfo.IME_ACTION_NONE) {
+                currentInputConnection?.performEditorAction(action)
+            } else {
+                currentInputConnection?.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
+                currentInputConnection?.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
+            }
         }
         consumeMomentaryShift()
     }
