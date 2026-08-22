@@ -58,10 +58,14 @@
       (`TanutusImeService.onPunctuationKey`)。実機で`あ。、`の入力を確認済み。
       直接英数モードのレイアウト(`FUNCTION_ROW_ALNUM`)には影響なし。
 
-## 将来タスク(今回は明示的にスコープ外)
+## 将来タスク
 
-- [ ] Mozcエンジン統合(mozkey/OyaMozcのfork、NDKビルド)。
-      `KanaConverter`インターフェース経由で`RomajiHiraganaConverter`を差し替える設計にしてある。
+- [ ] **Mozcエンジン統合**。実現可能性検証は完了済み(2026-08-22、詳細は
+      [mozc-integration-feasibility.md](mozc-integration-feasibility.md)):
+      WSL2 + Bazel + Android NDKで本家`google/mozc`から`libmozc.so`のビルドに成功、
+      JNIインターフェース(`evalCommand`等)も把握済み。未着手なのは辞書データセットの
+      ビルド(ツールチェーンエラー未解消)、Kotlin側JNIブリッジ実装、`KanaConverter`
+      インターフェース経由での接続。次回セッションへの引き継ぎ事項は上記ドキュメント参照。
 
 ## ビルド・テストコマンド
 
