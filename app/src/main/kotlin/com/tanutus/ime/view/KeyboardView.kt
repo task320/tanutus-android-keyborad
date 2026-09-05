@@ -49,14 +49,16 @@ class KeyboardView
         private var colors: KeyboardColors = KeyboardThemeProvider.themeFor(Layer.BASE, context)
         private var isLockedVisual: (KeyAction) -> Boolean = { false }
         private var uppercaseLetterKeys: Boolean = false
+        private var enterKeyLabel: String = DEFAULT_ENTER_LABEL
 
         private var rowRects: Array<Array<RectF>> = emptyArray()
 
         private val keyBackgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val keyLabelTextSizePx = resources.getDimension(R.dimen.key_label_text_size)
         private val keyTextPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 textAlign = Paint.Align.CENTER
-                textSize = resources.getDimension(R.dimen.key_label_text_size)
+                textSize = keyLabelTextSizePx
             }
         private val keyGapPx = resources.getDimension(R.dimen.key_gap)
 
@@ -95,16 +97,22 @@ class KeyboardView
          * intentionally does not apply while composing romaji (kana has no case, so the
          * converted output wouldn't match an uppercase glyph; see
          * [com.tanutus.ime.TanutusImeService.refreshKeyboardView]).
+         *
+         * [enterLabel] is the resolved label for the focused field's IME action (see
+         * [com.tanutus.ime.editor.EditorInfoActionMapper]) — "検索", "送信", … — which
+         * docs/keyboard-spec.md asks the Enter key to show alongside performing that action.
          */
         fun render(
             newLayout: KeyboardLayout,
             newColors: KeyboardColors,
             uppercaseLetters: Boolean = false,
+            enterLabel: String = DEFAULT_ENTER_LABEL,
             lockedVisual: (KeyAction) -> Boolean,
         ) {
             layout = newLayout
             colors = newColors
             uppercaseLetterKeys = uppercaseLetters
+            enterKeyLabel = enterLabel
             isLockedVisual = lockedVisual
             computeRowRects(width, height)
             invalidate()
@@ -180,10 +188,34 @@ class KeyboardView
                         }
                     canvas.drawRect(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset, keyBackgroundPaint)
                     keyTextPaint.color = if (locked) colors.keyTextLocked else colors.keyTextNormal
+                    val label = labelFor(key)
+                    fitLabelToKey(label, rect)
                     val textY = rect.centerY() - (keyTextPaint.descent() + keyTextPaint.ascent()) / 2f
-                    val label = if (uppercaseLetterKeys && key.action is KeyAction.Char) key.label.uppercase() else key.label
                     canvas.drawText(label, rect.centerX(), textY, keyTextPaint)
                 }
+            }
+        }
+
+        private fun labelFor(key: KeyDef): String =
+            when {
+                key.action == KeyAction.Enter -> enterKeyLabel
+                uppercaseLetterKeys && key.action is KeyAction.Char -> key.label.uppercase()
+                else -> key.label
+            }
+
+        /**
+         * Sets [keyTextPaint]'s size for this one key, shrinking it if the label wouldn't fit.
+         * Most labels are a single glyph, but the Enter key now shows the field's IME action
+         * label, which an app can supply as arbitrary text via [android.view.inputmethod
+         * .EditorInfo.actionLabel] — without this, a long one would overdraw its neighbours.
+         */
+        private fun fitLabelToKey(label: String, rect: RectF) {
+            keyTextPaint.textSize = keyLabelTextSizePx
+            val available = rect.width() - keyGapPx - LABEL_PADDING_PX * 2f
+            if (available <= 0f) return
+            val measured = keyTextPaint.measureText(label)
+            if (measured > available) {
+                keyTextPaint.textSize = keyLabelTextSizePx * (available / measured)
             }
         }
 
@@ -291,5 +323,11 @@ class KeyboardView
             val isDoubleTap = lastShiftTapUptimeMs != 0L && now - lastShiftTapUptimeMs <= doubleTapTimeoutMs
             lastShiftTapUptimeMs = if (isDoubleTap) 0L else now
             if (isDoubleTap) listener.onShiftDoubleTap() else listener.onShiftTap()
+        }
+
+        private companion object {
+            /** Shown until a field is focused; matches EditorInfoActionMapper's newline label. */
+            const val DEFAULT_ENTER_LABEL = "⏎"
+            const val LABEL_PADDING_PX = 6f
         }
     }

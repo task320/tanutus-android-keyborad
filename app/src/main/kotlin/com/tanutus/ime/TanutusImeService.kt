@@ -19,9 +19,12 @@ import com.tanutus.ime.core.layout.KeyboardLayouts
 import com.tanutus.ime.core.layout.Layer
 import com.tanutus.ime.core.state.InputMode
 import com.tanutus.ime.core.state.KeyboardStateMachine
+import com.tanutus.ime.core.state.KeyboardUiState
 import com.tanutus.ime.core.state.ShiftState
 import com.tanutus.ime.core.state.StateEvent
+import com.tanutus.ime.editor.ConversionPolicy
 import com.tanutus.ime.editor.EditorInfoActionMapper
+import com.tanutus.ime.editor.EditorInfoInputModeMapper
 import com.tanutus.ime.editor.EnterKeyBehavior
 import com.tanutus.ime.haptics.HapticsHelper
 import com.tanutus.ime.mozc.MozcKanaConverter
@@ -51,6 +54,7 @@ class TanutusImeService :
     private var keyboardViewReady = false
 
     private var enterKeyBehavior: EnterKeyBehavior = EditorInfoActionMapper.mapEnterKey(null)
+    private var conversionPolicy: ConversionPolicy = ConversionPolicy.NORMAL
 
     override fun onCreate() {
         super.onCreate()
@@ -114,11 +118,61 @@ class TanutusImeService :
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
-        stateMachine = KeyboardStateMachine()
+        // The field's own declared type decides how much of the conversion pipeline it gets:
+        // a password prompt must not echo what's being typed into the candidate bar, and an
+        // email/number/URI field opening in romaji mode just means the user has to reach for
+        // the A/あ key before every single use. See EditorInfoInputModeMapper.
+        conversionPolicy = EditorInfoInputModeMapper.mapConversionPolicy(info)
+        stateMachine = KeyboardStateMachine(KeyboardUiState(inputMode = conversionPolicy.initialInputMode))
         kanaConverter.reset()
         enterKeyBehavior = EditorInfoActionMapper.mapEnterKey(info)
+        // Hidden outright rather than just left blank (the spec's "候補が何もない状態では
+        // 空白のまま" rule): with conversion off for the whole field, a permanently empty bar
+        // is only wasted height.
+        candidateBarView.visibility =
+            if (conversionPolicy == ConversionPolicy.SUPPRESSED) View.GONE else View.VISIBLE
         candidateBarView.setCandidates(emptyList(), 0)
         refreshKeyboardView()
+    }
+
+    /**
+     * Keeps the converter's idea of the pending composition in sync with the editor's. Without
+     * this, tapping elsewhere in the text mid-conversion left Mozc still holding the composition
+     * while the editor had moved on, so the next keystroke spliced its output back at the old
+     * spot (or reordered it) — the composing span [android.view.inputmethod.InputConnection]
+     * replaces is no longer where the user is looking.
+     *
+     * Only acted on when the editor actually reports a composing region ([candidatesStart] >= 0):
+     * some editors (notably WebViews) always report -1, and treating that as "the user moved
+     * away" would abandon the composition on every single keystroke there.
+     */
+    override fun onUpdateSelection(
+        oldSelStart: Int,
+        oldSelEnd: Int,
+        newSelStart: Int,
+        newSelEnd: Int,
+        candidatesStart: Int,
+        candidatesEnd: Int,
+    ) {
+        super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        if (!kanaConverter.hasActiveComposition()) return
+        if (candidatesStart < 0) return
+        // Our own edits leave the caret collapsed at the end of the composing span, so anything
+        // still inside that span is this IME's own update echoing back, not the user moving.
+        val causedByOwnEdit = newSelStart == newSelEnd && newSelStart in candidatesStart..candidatesEnd
+        if (causedByOwnEdit) return
+        abandonComposition()
+    }
+
+    /**
+     * Drops a composition the user has navigated away from. The composing text is already in the
+     * document, so it's finalized where it stands rather than committed a second time — the goal
+     * is only to stop the converter from reaching back into a span it no longer owns.
+     */
+    private fun abandonComposition() {
+        currentInputConnection?.finishComposingText()
+        kanaConverter.reset()
+        if (keyboardViewReady) candidateBarView.setCandidates(emptyList(), 0)
     }
 
     /**
@@ -194,6 +248,10 @@ class TanutusImeService :
     override fun onLayerToggleTap() = applyStateEvent(StateEvent.LayerToggleTap)
 
     override fun onRomajiToggleTap() {
+        // In a password field there is no romaji mode to switch *to*: conversion is off for as
+        // long as that field is focused (ConversionPolicy.SUPPRESSED), so the key stays inert
+        // rather than flipping into a mode whose whole point — the candidate bar — is hidden.
+        if (conversionPolicy == ConversionPolicy.SUPPRESSED) return
         // Switching input mode shouldn't leave a stray composition behind.
         commitActiveComposition()
         applyStateEvent(StateEvent.RomajiToggleTap)
@@ -287,14 +345,24 @@ class TanutusImeService :
     private fun commitCandidate(index: Int) = applySegmentCommit(kanaConverter.commitCandidate(index))
 
     private fun applySegmentCommit(step: SegmentCommit) {
-        if (step.committedText.isNotEmpty()) {
-            currentInputConnection?.commitText(step.committedText, 1)
-        }
-        val remaining = step.remaining
-        if (remaining != null) {
-            onCompositionUpdated(remaining)
-        } else {
-            candidateBarView.setCandidates(emptyList(), 0)
+        val inputConnection = currentInputConnection
+        // The commit and the re-compose have to reach the editor as one edit: between them the
+        // composing span is momentarily gone, and an onUpdateSelection delivered in that gap
+        // looks exactly like the user tapping away from the composition — which would get the
+        // remaining segments abandoned mid-conversion.
+        inputConnection?.beginBatchEdit()
+        try {
+            if (step.committedText.isNotEmpty()) {
+                inputConnection?.commitText(step.committedText, 1)
+            }
+            val remaining = step.remaining
+            if (remaining != null) {
+                onCompositionUpdated(remaining)
+            } else {
+                candidateBarView.setCandidates(emptyList(), 0)
+            }
+        } finally {
+            inputConnection?.endBatchEdit()
         }
     }
 
@@ -338,7 +406,9 @@ class TanutusImeService :
         // casing (kana has no case, see onKeyChar), so showing uppercase key glyphs there
         // would promise a case change the typed kana would never actually show.
         val uppercaseLetters = state.inputMode == InputMode.DIRECT_ALNUM && state.shift != ShiftState.OFF
-        keyboardView.render(layout, colors, uppercaseLetters) { action -> stateMachine.isLockedVisual(action) }
+        keyboardView.render(layout, colors, uppercaseLetters, enterKeyBehavior.label) { action ->
+            stateMachine.isLockedVisual(action)
+        }
         // Keeps the gesture-safe-area padding (see applyGestureSafeAreaPadding) visually
         // seamless with row 4 instead of showing as a mismatched strip below it.
         inputRootView.setBackgroundColor(colors.background)

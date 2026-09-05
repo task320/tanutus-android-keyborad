@@ -67,6 +67,14 @@ data class KeyboardLayout(val layer: Layer, val rows: List<KeyRow>)
 object KeyboardLayouts {
     private fun charKey(id: String, char: Char): KeyDef = KeyDef(id, char.toString(), KeyAction.Char(char))
 
+    /**
+     * The label here is only the fallback for "no field focused yet": what actually gets drawn
+     * is the focused field's IME action label ("検索", "送信", …), which is Android-specific and
+     * so resolved outside this module — see com.tanutus.ime.editor.EditorInfoActionMapper and
+     * KeyboardView.render's `enterLabel`.
+     */
+    private val ENTER_KEY = KeyDef("enter", "⏎", KeyAction.Enter)
+
     val FUNCTION_ROW_ALNUM: KeyRow =
         KeyRow(
             listOf(
@@ -74,7 +82,7 @@ object KeyboardLayouts {
                 KeyDef("layer_toggle", "#12", KeyAction.LayerToggle),
                 KeyDef("space", " ", KeyAction.Space, widthWeight = 3f),
                 KeyDef("romaji_toggle", "A/あ", KeyAction.RomajiToggle),
-                KeyDef("enter", "Enter", KeyAction.Enter),
+                ENTER_KEY,
             ),
         )
 
@@ -91,7 +99,7 @@ object KeyboardLayouts {
                 KeyDef("space", " ", KeyAction.Space, widthWeight = 3f),
                 KeyDef("touten", "、", KeyAction.Punctuation('、')),
                 KeyDef("romaji_toggle", "A/あ", KeyAction.RomajiToggle),
-                KeyDef("enter", "Enter", KeyAction.Enter),
+                ENTER_KEY,
             ),
         )
 
