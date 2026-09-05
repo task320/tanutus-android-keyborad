@@ -12,8 +12,8 @@ class KeyboardLayoutDataTest {
         // This is the invariant KeyboardView's fixed-rect drawing trick depends on: row 4
         // (and Backspace, checked separately below) must never visually move when the layer
         // switches, and referential equality is what guarantees that at the data level. Row 4
-        // does differ *across* input modes (Shift is hidden during romaji), so this is checked
-        // separately per mode rather than across all four layout combinations.
+        // still differs *across* input modes (which punctuation flanks the space key), so this
+        // is checked separately per mode rather than across all four layout combinations.
         assertSame(KeyboardLayouts.BASE_LAYOUT_ALNUM.rows[3], KeyboardLayouts.SYMBOL_LAYOUT_ALNUM.rows[3])
         assertSame(KeyboardLayouts.FUNCTION_ROW_ALNUM, KeyboardLayouts.BASE_LAYOUT_ALNUM.rows[3])
 
@@ -25,13 +25,30 @@ class KeyboardLayoutDataTest {
     fun `both layers have the same key counts per row, per input mode`() {
         val alnumBase = KeyboardLayouts.BASE_LAYOUT_ALNUM.rows.map { it.keys.size }
         val alnumSymbol = KeyboardLayouts.SYMBOL_LAYOUT_ALNUM.rows.map { it.keys.size }
-        assertEquals(listOf(11, 9, 7, 5), alnumBase)
-        assertEquals(listOf(11, 9, 8, 5), alnumSymbol)
+        assertEquals(listOf(11, 9, 8, 6), alnumBase)
+        assertEquals(listOf(11, 9, 9, 6), alnumSymbol)
 
         val romajiBase = KeyboardLayouts.BASE_LAYOUT_ROMAJI.rows.map { it.keys.size }
         val romajiSymbol = KeyboardLayouts.SYMBOL_LAYOUT_ROMAJI.rows.map { it.keys.size }
-        assertEquals(listOf(11, 9, 7, 6), romajiBase)
-        assertEquals(listOf(11, 9, 8, 6), romajiSymbol)
+        assertEquals(listOf(11, 9, 8, 6), romajiBase)
+        assertEquals(listOf(11, 9, 9, 6), romajiSymbol)
+    }
+
+    @Test
+    fun `shift is the first key of row 3 on every layout`() {
+        // Shift moved out of row 4 so that comma/period could flank the space key in
+        // direct-alnum mode. Being in row 3 also means it is present while composing romaji,
+        // which is what layer 2's ShiftPair keys (`_`, `"`) need to be reachable there.
+        val layouts =
+            listOf(
+                KeyboardLayouts.BASE_LAYOUT_ALNUM,
+                KeyboardLayouts.BASE_LAYOUT_ROMAJI,
+                KeyboardLayouts.SYMBOL_LAYOUT_ALNUM,
+                KeyboardLayouts.SYMBOL_LAYOUT_ROMAJI,
+            )
+        for (layout in layouts) {
+            assertEquals("row 3 of $layout", KeyAction.Shift, layout.rows[2].keys.first().action)
+        }
     }
 
     @Test
@@ -43,13 +60,20 @@ class KeyboardLayoutDataTest {
     @Test
     fun `function row order matches the spec left-to-right`() {
         assertEquals(
-            listOf(KeyAction.Shift, KeyAction.LayerToggle, KeyAction.Space, KeyAction.RomajiToggle, KeyAction.Enter),
+            listOf(
+                KeyAction.LayerToggle,
+                KeyAction.Char(','),
+                KeyAction.Space,
+                KeyAction.Char('.'),
+                KeyAction.RomajiToggle,
+                KeyAction.Enter,
+            ),
             KeyboardLayouts.FUNCTION_ROW_ALNUM.keys.map { it.action },
         )
     }
 
     @Test
-    fun `romaji function row hides shift but adds kuten and touten flanking space`() {
+    fun `romaji function row swaps in kuten and touten flanking space`() {
         assertEquals(
             listOf(
                 KeyAction.LayerToggle,

@@ -55,17 +55,28 @@ data class KeyboardLayout(val layer: Layer, val rows: List<KeyRow>)
 /**
  * Static layer definitions matching docs/keyboard-spec.md.
  *
+ * Shift lives at the left end of row 3 rather than in row 4, which frees the two slots
+ * flanking the space key for punctuation in *both* input modes — direct-alnum had no comma
+ * or period at all before. Row 3 is where Shift sits on a physical QWERTY anyway, and keeping
+ * it out of the mode-dependent row 4 is also what makes it reachable while composing romaji,
+ * where layer 2's [KeyAction.ShiftPair] keys (`_`, `"`) genuinely need it.
+ *
  * Row 4 has two variants selected by [InputMode] (see [FUNCTION_ROW_ALNUM] /
- * [FUNCTION_ROW_ROMAJI]): Shift is only meaningful in direct-alnum input, where it actually
- * changes the committed character (romaji composition ignores it — kana has no case, see
- * [com.tanutus.ime.TanutusImeService.onKeyChar]), so it's hidden entirely during romaji
- * composition rather than shown as a dead key. Each variant is a single shared instance
- * referenced from both [Layer.BASE] and [Layer.SYMBOL] layouts, so that "row 4 never moves
- * when switching *layers*" stays a structural (data-identity) guarantee for a given input
- * mode, even though it now also varies across input modes.
+ * [FUNCTION_ROW_ROMAJI]). They are structurally identical now — same key count, same actions
+ * in the same order — and differ only in which punctuation glyphs flank the space key
+ * (`,`/`.` vs `。`/`、`). Each variant is a single shared instance referenced from both
+ * [Layer.BASE] and [Layer.SYMBOL] layouts, so that "row 4 never moves when switching *layers*"
+ * stays a structural (data-identity) guarantee for a given input mode.
  */
 object KeyboardLayouts {
     private fun charKey(id: String, char: Char): KeyDef = KeyDef(id, char.toString(), KeyAction.Char(char))
+
+    /**
+     * One shared definition used by row 3 of both layers. Note this is *not* the positional
+     * guarantee row 4 and Backspace carry: layer 2's row 3 holds one more key than layer 1's,
+     * so Shift does shift sideways when the layer toggles.
+     */
+    private val SHIFT_KEY = KeyDef("shift", "Shift", KeyAction.Shift)
 
     /**
      * The label here is only the fallback for "no field focused yet": what actually gets drawn
@@ -75,12 +86,20 @@ object KeyboardLayouts {
      */
     private val ENTER_KEY = KeyDef("enter", "⏎", KeyAction.Enter)
 
+    /**
+     * Comma and period flank the space key, mirroring the 句点/読点 of [FUNCTION_ROW_ROMAJI].
+     * They are plain [KeyAction.Char]s, not [KeyAction.Punctuation]: in direct-alnum mode there
+     * is never a composition to join, and going through the ordinary character path is what
+     * gets them converted to `，`/`．` when the zenkaku toggle is on (see
+     * [com.tanutus.ime.TanutusImeService.commitLiteralChar]).
+     */
     val FUNCTION_ROW_ALNUM: KeyRow =
         KeyRow(
             listOf(
-                KeyDef("shift", "Shift", KeyAction.Shift),
                 KeyDef("layer_toggle", "#12", KeyAction.LayerToggle),
+                KeyDef("key_comma", ",", KeyAction.Char(',')),
                 KeyDef("space", " ", KeyAction.Space, widthWeight = 3f),
+                KeyDef("key_period", ".", KeyAction.Char('.')),
                 KeyDef("romaji_toggle", "A/あ", KeyAction.RomajiToggle),
                 ENTER_KEY,
             ),
@@ -111,7 +130,7 @@ object KeyboardLayouts {
                 "qwertyuiop".map { charKey("key_$it", it) } + BACKSPACE_KEY,
             ),
             KeyRow("asdfghjkl".map { charKey("key_$it", it) }, centered = true),
-            KeyRow("zxcvbnm".map { charKey("key_$it", it) }, centered = true),
+            KeyRow(listOf(SHIFT_KEY) + "zxcvbnm".map { charKey("key_$it", it) }, centered = true),
         )
 
     private val SYMBOL_ROWS_PREFIX: List<KeyRow> =
@@ -134,6 +153,7 @@ object KeyboardLayouts {
             ),
             KeyRow(
                 listOf(
+                    SHIFT_KEY,
                     charKey("key_hash", '#'),
                     charKey("key_asterisk", '*'),
                     charKey("key_plus", '+'),

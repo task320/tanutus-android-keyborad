@@ -29,8 +29,8 @@ import com.tanutus.ime.theme.KeyboardThemeProvider
  * Canvas-drawn keyboard surface. Row 4's structure is identical across [Layer.BASE] and
  * [Layer.SYMBOL] for a given [com.tanutus.ime.core.state.InputMode] (see
  * KeyboardLayoutDataTest), so switching layers never needs a relayout — but it does differ
- * *between* input modes (Shift is only present in direct-alnum's row 4), so [render]
- * recomputes [rowRects] on every call rather than assuming the row structure is fixed.
+ * *between* layers (row 3 carries a different number of symbol keys), so [render] recomputes
+ * [rowRects] on every call rather than assuming the row structure is fixed.
  *
  * The space key's touch stream is handed off entirely to [spaceTouchAdapter] /
  * [SpaceGestureDetector] for the duration of that gesture; every other key uses a simple

@@ -78,10 +78,10 @@ class KeyboardStateMachine(initial: KeyboardUiState = KeyboardUiState()) {
                     val newMode = if (before.inputMode == InputMode.ROMAJI) InputMode.DIRECT_ALNUM else InputMode.ROMAJI
                     before.copy(
                         inputMode = newMode,
-                        // Shift is hidden (and unreachable) during romaji composition — see
-                        // KeyboardLayouts.FUNCTION_ROW_ROMAJI — so returning to it must drop
-                        // any shift the user left engaged in direct-alnum mode rather than
-                        // leaving a dangling lock the user can no longer see or clear.
+                        // Per docs/keyboard-spec.md, returning to romaji drops any shift left
+                        // engaged in direct-alnum mode. Shift is still on screen there (row 3),
+                        // but kana has no case, so a lock carried over would sit filled while
+                        // doing nothing to the letters the user is actually typing.
                         shift = if (newMode == InputMode.ROMAJI) ShiftState.OFF else before.shift,
                     )
                 }
