@@ -11,6 +11,8 @@ data class KeyboardColors(
     val keyBackgroundNormal: Int,
     val keyBackgroundLocked: Int,
     val keyBackgroundShiftLocked: Int,
+    val keyBackgroundShiftMomentary: Int,
+    val keyOutlineZenkaku: Int,
     val keyTextNormal: Int,
     val keyTextLocked: Int,
 )
@@ -33,6 +35,8 @@ object KeyboardThemeProvider {
             keyBackgroundNormal = ContextCompat.getColor(context, R.color.key_background_normal),
             keyBackgroundLocked = ContextCompat.getColor(context, R.color.key_background_locked),
             keyBackgroundShiftLocked = ContextCompat.getColor(context, R.color.key_background_shift_locked),
+            keyBackgroundShiftMomentary = ContextCompat.getColor(context, R.color.key_background_shift_momentary),
+            keyOutlineZenkaku = ContextCompat.getColor(context, R.color.key_outline_zenkaku),
             keyTextNormal = ContextCompat.getColor(context, R.color.key_text_normal),
             keyTextLocked = ContextCompat.getColor(context, R.color.key_text_locked),
         )

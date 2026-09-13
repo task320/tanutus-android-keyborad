@@ -33,14 +33,18 @@ class MozcKanaConverter(context: Context) : KanaConverter {
     private var candidateWords: List<ProtoCandidateWindow.CandidateWord> = emptyList()
 
     override fun input(char: Char): Composition {
-        rawInputBuffer.append(char)
         val output = sendKey(ProtoCommands.KeyEvent.newBuilder().setKeyCode(char.code))
-        return applyOutput(output)
+        // Typing while a conversion is showing makes Mozc confirm it first (session.cc,
+        // Session::InsertCharacter: `should_commit = state == CONVERSION`) and start a new
+        // composition from this key alone — so the raw input typed before it is no longer pending.
+        if (output.hasResult()) rawInputBuffer.clear()
+        rawInputBuffer.append(char)
+        return applyOutput(output, surfaceResult = true)
     }
 
     override fun nextCandidate(): Composition {
         val output = sendKey(specialKey(ProtoCommands.KeyEvent.SpecialKey.SPACE))
-        return applyOutput(output)
+        return applyOutput(output, surfaceResult = true)
     }
 
     override fun commit(): String {
@@ -85,7 +89,9 @@ class MozcKanaConverter(context: Context) : KanaConverter {
         val committedText = if (output.hasResult()) output.result.value else ""
         val stillComposing = output.hasPreedit() && output.preedit.segmentList.isNotEmpty()
         return if (stillComposing) {
-            SegmentCommit(committedText, applyOutput(output))
+            // surfaceResult = false: the result is already this SegmentCommit's committedText,
+            // and carrying it on `remaining` too would get it committed twice.
+            SegmentCommit(committedText, applyOutput(output, surfaceResult = false))
         } else {
             // Nothing left pending: fall back to whatever was showing if this particular
             // response carried no explicit Result, so a partial commit never silently drops text.
@@ -100,7 +106,7 @@ class MozcKanaConverter(context: Context) : KanaConverter {
             rawInputBuffer.deleteCharAt(rawInputBuffer.length - 1)
         }
         val output = sendKey(specialKey(ProtoCommands.KeyEvent.SpecialKey.BACKSPACE))
-        return applyOutput(output)
+        return applyOutput(output, surfaceResult = true)
     }
 
     override fun hasActiveComposition(): Boolean = !composition.isEmpty
@@ -142,13 +148,26 @@ class MozcKanaConverter(context: Context) : KanaConverter {
         return ProtoCommands.Command.parseFrom(responseBytes).output
     }
 
-    private fun applyOutput(output: ProtoCommands.Output): Composition {
+    /**
+     * [surfaceResult]: whether any `Output.result` in this response is returned as the
+     * composition's [Composition.committedText]. Operations that report their own commit (see
+     * [commitCandidate]) pass false so the same text is not committed twice; everything else
+     * passes true, so text Mozc finalizes as a side effect is never silently dropped. Dropping it
+     * was the bug where typing during a conversion replaced the conversion instead of confirming
+     * it — Mozc had confirmed it, but only `preedit` was read back.
+     */
+    private fun applyOutput(output: ProtoCommands.Output, surfaceResult: Boolean): Composition {
         val text =
             if (output.hasPreedit()) {
                 output.preedit.segmentList.joinToString("") { it.value }
             } else {
                 ""
             }
+        // No preedit means nothing is composing any more (e.g. Mozc committed the whole input
+        // directly). Keeping stale raw input here would leave hasActiveComposition() true with
+        // nothing on screen, and the next Enter would be spent "confirming" an empty composition
+        // instead of performing the editor action.
+        if (text.isEmpty()) rawInputBuffer.clear()
         // Mozc computes zero-query SUGGESTION candidates on every keystroke (for a separate
         // autocomplete-style strip real clients show above the keyboard), not just after an
         // explicit conversion request. Treating those as *the* candidate list would make
@@ -183,6 +202,9 @@ class MozcKanaConverter(context: Context) : KanaConverter {
                 candidates = candidates,
                 candidateIndex = candidateIndex,
             )
-        return composition
+        // The stored composition never carries committedText (it is a one-shot event, see
+        // Composition.committedText); only the value handed back to this call's caller does.
+        val committedText = if (surfaceResult && output.hasResult()) output.result.value else ""
+        return if (committedText.isEmpty()) composition else composition.copy(committedText = committedText)
     }
 }

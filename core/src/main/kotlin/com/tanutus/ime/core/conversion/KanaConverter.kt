@@ -17,6 +17,18 @@ data class Composition(
     val text: String,
     val candidates: List<String> = if (text.isEmpty()) emptyList() else listOf(text),
     val candidateIndex: Int = 0,
+    /**
+     * Text the engine finalized *as a side effect* of the operation that produced this
+     * composition, which the caller must commit to the document before showing [text] as the
+     * new composing span. The standard case: typing a key while a conversion is showing makes
+     * Mozc confirm that conversion and start a fresh composition with the new key, both in one
+     * response. [text] then holds only the new key, so a caller that just replaced the composing
+     * span with it would overwrite — and lose — the conversion the user was looking at.
+     *
+     * A one-shot event rather than state: it is only ever set on the value an operation returns,
+     * never carried forward into later compositions.
+     */
+    val committedText: String = "",
 ) {
     val isEmpty: Boolean get() = rawInput.isEmpty()
     val currentCandidate: String get() = candidates.getOrElse(candidateIndex) { text }

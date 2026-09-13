@@ -21,9 +21,13 @@ import com.tanutus.ime.core.layout.KeyDef
 import com.tanutus.ime.core.layout.KeyboardLayout
 import com.tanutus.ime.core.layout.KeyboardLayouts
 import com.tanutus.ime.core.layout.Layer
+import com.tanutus.ime.core.layout.RowAlignment
+import com.tanutus.ime.core.state.KeyFill
+import com.tanutus.ime.core.state.KeyVisualState
 import com.tanutus.ime.gesture.SpaceKeyTouchAdapter
 import com.tanutus.ime.theme.KeyboardColors
 import com.tanutus.ime.theme.KeyboardThemeProvider
+import kotlin.math.abs
 
 /**
  * Canvas-drawn keyboard surface. Row 4's structure is identical across [Layer.BASE] and
@@ -47,8 +51,9 @@ class KeyboardView
 
         private var layout: KeyboardLayout = KeyboardLayouts.BASE_LAYOUT_ROMAJI
         private var colors: KeyboardColors = KeyboardThemeProvider.themeFor(Layer.BASE, context)
-        private var isLockedVisual: (KeyAction) -> Boolean = { false }
+        private var visualStateFor: (KeyAction) -> KeyVisualState = { KeyVisualState() }
         private var uppercaseLetterKeys: Boolean = false
+        private var shiftActiveKeys: Boolean = false
         private var enterKeyLabel: String = DEFAULT_ENTER_LABEL
 
         private var rowRects: Array<Array<RectF>> = emptyArray()
@@ -61,6 +66,12 @@ class KeyboardView
                 textSize = keyLabelTextSizePx
             }
         private val keyGapPx = resources.getDimension(R.dimen.key_gap)
+        private val keyOutlineWidthPx = resources.getDimension(R.dimen.key_outline_width)
+        private val keyOutlinePaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = keyOutlineWidthPx
+            }
 
         private val interactionHandler = Handler(Looper.getMainLooper())
         private val longPressTimeoutMs = resources.getInteger(R.integer.long_press_timeout_ms).toLong()
@@ -70,7 +81,8 @@ class KeyboardView
         private var pressedKey: KeyDef? = null
         private var longPressHandled = false
         private val longPressRunnable = Runnable { onLongPressTriggered() }
-        private var lastShiftTapUptimeMs = 0L
+        private var lastLatchTapKeyId: String? = null
+        private var lastLatchTapUptimeMs = 0L
         private val backspaceRepeatRunnable =
             object : Runnable {
                 override fun run() {
@@ -98,6 +110,10 @@ class KeyboardView
          * converted output wouldn't match an uppercase glyph; see
          * [com.tanutus.ime.TanutusImeService.refreshKeyboardView]).
          *
+         * [shiftActive] is the raw "shift is engaged" flag, and unlike [uppercaseLetters] it is
+         * not gated on input mode: [KeyAction.ShiftPair] keys resolve to their shifted glyph in
+         * either mode, so their labels have to follow in either mode too.
+         *
          * [enterLabel] is the resolved label for the focused field's IME action (see
          * [com.tanutus.ime.editor.EditorInfoActionMapper]) — "検索", "送信", … — which
          * docs/keyboard-spec.md asks the Enter key to show alongside performing that action.
@@ -106,14 +122,16 @@ class KeyboardView
             newLayout: KeyboardLayout,
             newColors: KeyboardColors,
             uppercaseLetters: Boolean = false,
+            shiftActive: Boolean = false,
             enterLabel: String = DEFAULT_ENTER_LABEL,
-            lockedVisual: (KeyAction) -> Boolean,
+            visualState: (KeyAction) -> KeyVisualState,
         ) {
             layout = newLayout
             colors = newColors
             uppercaseLetterKeys = uppercaseLetters
+            shiftActiveKeys = shiftActive
             enterKeyLabel = enterLabel
-            isLockedVisual = lockedVisual
+            visualStateFor = visualState
             computeRowRects(width, height)
             invalidate()
         }
@@ -147,9 +165,9 @@ class KeyboardView
                 rowRects = emptyArray()
                 return
             }
-            // Row 0's per-unit-weight width is the shared reference a `centered` row's keys are
-            // sized against, so they line up with row 0's columns instead of stretching to fill
-            // the full width themselves (see KeyRow.centered).
+            // Row 0's per-unit-weight width is the shared reference every non-STRETCH row is
+            // sized against, so those rows line up with row 0's columns instead of stretching
+            // their own keys to fill the width (see RowAlignment).
             val unitWidth = w / rows[0].keys.sumOf { it.widthWeight.toDouble() }.toFloat()
             val rowHeight = h.toFloat() / rows.size
             rowRects =
@@ -158,19 +176,45 @@ class KeyboardView
                     val totalWeight = row.keys.sumOf { it.widthWeight.toDouble() }.toFloat()
                     val top = rowHeight * rowIndex
                     val bottom = top + rowHeight
-                    var x = if (row.centered) (w - unitWidth * totalWeight) / 2f else 0f
-                    Array(row.keys.size) { colIndex ->
-                        val width =
-                            if (row.centered) unitWidth * row.keys[colIndex].widthWeight else w * (row.keys[colIndex].widthWeight / totalWeight)
-                        val rect = RectF(x, top, x + width, bottom)
-                        x += width
-                        rect
-                    }
+                    val widths =
+                        FloatArray(row.keys.size) { i ->
+                            val weight = row.keys[i].widthWeight
+                            if (row.alignment == RowAlignment.STRETCH) w * (weight / totalWeight) else unitWidth * weight
+                        }
+                    val lefts = rowKeyLefts(row.alignment, widths, w.toFloat())
+                    Array(row.keys.size) { i -> RectF(lefts[i], top, lefts[i] + widths[i], bottom) }
                 }
+        }
+
+        /** Left edge of each key in a row, per its [RowAlignment]. See [computeRowRects]. */
+        private fun rowKeyLefts(alignment: RowAlignment, widths: FloatArray, rowWidth: Float): FloatArray {
+            val lefts = FloatArray(widths.size)
+            val last = widths.size - 1
+            // UNIT_EDGES needs two keys to have edges to pin; with fewer, fall back to centering
+            // the row rather than producing a degenerate layout.
+            val pinEdges = alignment == RowAlignment.UNIT_EDGES && widths.size >= 2
+            if (pinEdges) {
+                lefts[0] = 0f
+                lefts[last] = rowWidth - widths[last]
+                val middleWidth = (1 until last).sumOf { widths[it].toDouble() }.toFloat()
+                var x = widths[0] + (rowWidth - widths[0] - widths[last] - middleWidth) / 2f
+                for (i in 1 until last) {
+                    lefts[i] = x
+                    x += widths[i]
+                }
+                return lefts
+            }
+            var x = if (alignment == RowAlignment.STRETCH) 0f else (rowWidth - widths.sum()) / 2f
+            for (i in widths.indices) {
+                lefts[i] = x
+                x += widths[i]
+            }
+            return lefts
         }
 
         override fun onDraw(canvas: Canvas) {
             canvas.drawColor(colors.background)
+            keyOutlinePaint.color = colors.keyOutlineZenkaku
             val rows = layout.rows
             val inset = keyGapPx / 2f
             for (rowIndex in rows.indices) {
@@ -179,15 +223,27 @@ class KeyboardView
                 for (colIndex in keys.indices) {
                     val key = keys[colIndex]
                     val rect = rects.getOrNull(colIndex) ?: continue
-                    val locked = isLockedVisual(key.action)
+                    val visual = visualStateFor(key.action)
+                    val filled = visual.fill != KeyFill.NORMAL
                     keyBackgroundPaint.color =
-                        when {
-                            locked && key.action == KeyAction.Shift -> colors.keyBackgroundShiftLocked
-                            locked -> colors.keyBackgroundLocked
-                            else -> colors.keyBackgroundNormal
+                        when (visual.fill) {
+                            KeyFill.SHIFT_LOCKED -> colors.keyBackgroundShiftLocked
+                            KeyFill.SHIFT_MOMENTARY -> colors.keyBackgroundShiftMomentary
+                            KeyFill.LOCKED -> colors.keyBackgroundLocked
+                            KeyFill.NORMAL -> colors.keyBackgroundNormal
                         }
-                    canvas.drawRect(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset, keyBackgroundPaint)
-                    keyTextPaint.color = if (locked) colors.keyTextLocked else colors.keyTextNormal
+                    val left = rect.left + inset
+                    val top = rect.top + inset
+                    val right = rect.right - inset
+                    val bottom = rect.bottom - inset
+                    canvas.drawRect(left, top, right, bottom, keyBackgroundPaint)
+                    if (visual.outlined) {
+                        // Inset by half the stroke width so the stroke lands fully inside the
+                        // key rather than straddling its edge and bleeding into the gap.
+                        val half = keyOutlineWidthPx / 2f
+                        canvas.drawRect(left + half, top + half, right - half, bottom - half, keyOutlinePaint)
+                    }
+                    keyTextPaint.color = if (filled) colors.keyTextLocked else colors.keyTextNormal
                     val label = labelFor(key)
                     fitLabelToKey(label, rect)
                     val textY = rect.centerY() - (keyTextPaint.descent() + keyTextPaint.ascent()) / 2f
@@ -197,9 +253,12 @@ class KeyboardView
         }
 
         private fun labelFor(key: KeyDef): String =
-            when {
-                key.action == KeyAction.Enter -> enterKeyLabel
-                uppercaseLetterKeys && key.action is KeyAction.Char -> key.label.uppercase()
+            when (val action = key.action) {
+                KeyAction.Enter -> enterKeyLabel
+                // A shift-pair key's two glyphs are unrelated characters, so the label has to
+                // say which one is armed — unlike a letter, you cannot infer `{` from seeing `[`.
+                is KeyAction.ShiftPair -> (if (shiftActiveKeys) action.shifted else action.base).toString()
+                is KeyAction.Char -> if (uppercaseLetterKeys) key.label.uppercase() else key.label
                 else -> key.label
             }
 
@@ -255,7 +314,12 @@ class KeyboardView
             if (rects.isEmpty()) return null
             val colIndex = rects.indexOfFirst { x >= it.left && x < it.right }
             if (colIndex >= 0) return rowIndex to colIndex
-            return rowIndex to (if (x < rects.first().left) 0 else rects.size - 1)
+            // A UNIT_CENTERED row leaves margins at both ends and a UNIT_EDGES row also leaves
+            // gaps beside its pinned first/last keys, so a miss has to snap to the *nearest*
+            // key. Falling through to "first or last" would hand a tap in the gap next to Shift
+            // straight to Backspace at the other end of the row.
+            val nearest = rects.indices.minByOrNull { abs(x - rects[it].centerX()) } ?: return null
+            return rowIndex to nearest
         }
 
         private fun handleGenericDown(key: KeyDef) {
@@ -296,33 +360,46 @@ class KeyboardView
 
         private fun dispatchTap(key: KeyDef) {
             val listener = keyboardActionListener ?: return
-            when (val action = key.action) {
+            val action = key.action
+            when (action) {
                 is KeyAction.Char -> listener.onKeyChar(action.char)
                 is KeyAction.ShiftPair -> listener.onShiftPairKey(action)
                 is KeyAction.Punctuation -> listener.onPunctuationKey(action.char)
                 KeyAction.Backspace -> listener.onBackspace()
-                KeyAction.Shift -> dispatchShiftTap(listener)
+                KeyAction.Shift -> dispatchLatchableTap(key, listener::onShiftTap, listener::onShiftDoubleTap)
                 KeyAction.LayerToggle -> listener.onLayerToggleTap()
                 KeyAction.RomajiToggle -> listener.onRomajiToggleTap()
                 KeyAction.Enter -> listener.onEnter()
                 KeyAction.Space -> Unit // space is handled entirely via the gesture path above
             }
+            // Any other key ends a pending latch pairing: two shift taps with a letter typed
+            // between them are two separate taps, not the lock gesture, however fast they land.
+            if (action != KeyAction.Shift) {
+                lastLatchTapKeyId = null
+            }
         }
 
         /**
-         * Shift-lock is two quick taps rather than a long-press (see docs/keyboard-spec.md). A
-         * tap within [doubleTapTimeoutMs] of the previous one is the lock gesture *instead of*
-         * an ordinary tap (not in addition to one) — dispatching both would let the first tap's
-         * own state change (e.g. LOCKED -> OFF, since a single tap already exits the lock) throw
-         * off what "double-tap" toggles from. [lastShiftTapUptimeMs] resets to 0 after consuming
-         * a double-tap so a third quick tap starts a fresh pair rather than chaining into
-         * another lock toggle.
+         * Shift-lock is two quick taps rather than a long-press (see docs/keyboard-spec.md).
+         * A tap within [doubleTapTimeoutMs] of the previous tap *on the same key* is the latch
+         * gesture *instead of* an ordinary tap (not in addition to one) — dispatching both would
+         * let the first tap's own state change (e.g. LOCKED -> OFF, since a single tap already
+         * exits the lock) throw off what "double-tap" toggles from.
+         *
+         * The pairing is keyed by [KeyDef.id] and cleared after a double tap is consumed, so a
+         * third quick tap starts a fresh pair rather than chaining into another latch toggle.
+         * [dispatchTap] also clears it on any other key, so a letter typed between two Shift
+         * taps keeps them from pairing up.
+         *
+         * Shift is the only caller today: the zenkaku latch on the romaji-toggle key is a
+         * long-press, which suppresses the tap outright and so needs none of this.
          */
-        private fun dispatchShiftTap(listener: KeyboardActionListener) {
+        private fun dispatchLatchableTap(key: KeyDef, onTap: () -> Unit, onDoubleTap: () -> Unit) {
             val now = SystemClock.uptimeMillis()
-            val isDoubleTap = lastShiftTapUptimeMs != 0L && now - lastShiftTapUptimeMs <= doubleTapTimeoutMs
-            lastShiftTapUptimeMs = if (isDoubleTap) 0L else now
-            if (isDoubleTap) listener.onShiftDoubleTap() else listener.onShiftTap()
+            val isDoubleTap = lastLatchTapKeyId == key.id && now - lastLatchTapUptimeMs <= doubleTapTimeoutMs
+            lastLatchTapKeyId = if (isDoubleTap) null else key.id
+            lastLatchTapUptimeMs = now
+            if (isDoubleTap) onDoubleTap() else onTap()
         }
 
         private companion object {

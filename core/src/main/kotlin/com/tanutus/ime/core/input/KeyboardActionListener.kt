@@ -28,6 +28,7 @@ interface KeyboardActionListener {
 
     fun onRomajiToggleTap()
 
+    /** Long-press on the romaji-toggle key, i.e. the zenkaku latch (see KeyboardView). */
     fun onRomajiToggleLongPress()
 
     fun onEnter()

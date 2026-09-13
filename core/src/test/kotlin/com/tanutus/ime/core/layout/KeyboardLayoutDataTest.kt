@@ -7,6 +7,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class KeyboardLayoutDataTest {
+    private val ALL_LAYOUTS =
+        listOf(
+            KeyboardLayouts.BASE_LAYOUT_ALNUM,
+            KeyboardLayouts.BASE_LAYOUT_ROMAJI,
+            KeyboardLayouts.SYMBOL_LAYOUT_ALNUM,
+            KeyboardLayouts.SYMBOL_LAYOUT_ROMAJI,
+        )
+
     @Test
     fun `row 4 is the identical shared instance on both layers, per input mode`() {
         // This is the invariant KeyboardView's fixed-rect drawing trick depends on: row 4
@@ -25,36 +33,95 @@ class KeyboardLayoutDataTest {
     fun `both layers have the same key counts per row, per input mode`() {
         val alnumBase = KeyboardLayouts.BASE_LAYOUT_ALNUM.rows.map { it.keys.size }
         val alnumSymbol = KeyboardLayouts.SYMBOL_LAYOUT_ALNUM.rows.map { it.keys.size }
-        assertEquals(listOf(11, 9, 8, 6), alnumBase)
-        assertEquals(listOf(11, 9, 9, 6), alnumSymbol)
+        assertEquals(listOf(10, 9, 9, 6), alnumBase)
+        assertEquals(listOf(10, 10, 9, 6), alnumSymbol)
 
         val romajiBase = KeyboardLayouts.BASE_LAYOUT_ROMAJI.rows.map { it.keys.size }
         val romajiSymbol = KeyboardLayouts.SYMBOL_LAYOUT_ROMAJI.rows.map { it.keys.size }
-        assertEquals(listOf(11, 9, 8, 6), romajiBase)
-        assertEquals(listOf(11, 9, 9, 6), romajiSymbol)
+        assertEquals(listOf(10, 9, 9, 6), romajiBase)
+        assertEquals(listOf(10, 10, 9, 6), romajiSymbol)
     }
 
     @Test
-    fun `shift is the first key of row 3 on every layout`() {
+    fun `the symbol layer can type every ASCII punctuation mark`() {
+        // The whole point of pairing most of layer 2 with Shift: before it, ! $ % & ; = ? \ ^ |
+        // were unreachable from any layer. Comma and period are the exceptions — they live on
+        // row 4, which this layout's rows do not include.
+        val reachable =
+            KeyboardLayouts.SYMBOL_LAYOUT_ALNUM.rows
+                .flatMap { it.keys }
+                .flatMap { key ->
+                    when (val action = key.action) {
+                        is KeyAction.Char -> listOf(action.char)
+                        is KeyAction.ShiftPair -> listOf(action.base, action.shifted)
+                        else -> emptyList()
+                    }
+                }.toSet()
+        val asciiPunctuation = (' '.code..'~'.code).map { it.toChar() }.filter { !it.isLetterOrDigit() && !it.isWhitespace() }
+        assertEquals(emptySet<Char>(), (asciiPunctuation - setOf(',', '.')).toSet() - reachable)
+    }
+
+    @Test
+    fun `the digit row's shift pairs follow the US layout`() {
+        val digitRow = KeyboardLayouts.SYMBOL_LAYOUT_ALNUM.rows[0].keys
+        assertEquals(
+            "1234567890".zip("!@#\$%^&*()").map { (base, shifted) -> KeyAction.ShiftPair(base, shifted) },
+            digitRow.map { it.action },
+        )
+    }
+
+    @Test
+    fun `at sign sits immediately left of backspace on the symbol layer`() {
+        val row3 = KeyboardLayouts.SYMBOL_LAYOUT_ALNUM.rows[2].keys
+        assertEquals(listOf(KeyAction.Char('@'), KeyAction.Backspace), row3.takeLast(2).map { it.action })
+    }
+
+    @Test
+    fun `row 2 holds the everyday Markdown symbols unshifted`() {
+        // ">" and "|" are on the unshifted side even though a US keyboard shifts them: they are
+        // blockquote and table syntax, typed constantly, while "<" and "\" barely appear.
+        // The hyphen (= the chōonpu while composing romaji) and # stay at the right end.
+        val row2Unshifted =
+            KeyboardLayouts.SYMBOL_LAYOUT_ALNUM.rows[1].keys.map { key ->
+                when (val action = key.action) {
+                    is KeyAction.Char -> action.char
+                    is KeyAction.ShiftPair -> action.base
+                    else -> error("unexpected action on row 2: $action")
+                }
+            }
+        assertEquals("()[]*`>|-#".toList(), row2Unshifted)
+    }
+
+    @Test
+    fun `row 3 is bookended by shift and backspace on every layout`() {
         // Shift moved out of row 4 so that comma/period could flank the space key in
-        // direct-alnum mode. Being in row 3 also means it is present while composing romaji,
-        // which is what layer 2's ShiftPair keys (`_`, `"`) need to be reachable there.
-        val layouts =
-            listOf(
-                KeyboardLayouts.BASE_LAYOUT_ALNUM,
-                KeyboardLayouts.BASE_LAYOUT_ROMAJI,
-                KeyboardLayouts.SYMBOL_LAYOUT_ALNUM,
-                KeyboardLayouts.SYMBOL_LAYOUT_ROMAJI,
-            )
-        for (layout in layouts) {
+        // direct-alnum mode; Backspace moved out of row 1 so row 1 is exactly ten letter keys.
+        // Both layers pin them to the row's edges (RowAlignment.UNIT_EDGES), which is what
+        // keeps them at the same screen position even though the rows between differ in length.
+        for (layout in ALL_LAYOUTS) {
             assertEquals("row 3 of $layout", KeyAction.Shift, layout.rows[2].keys.first().action)
+            assertEquals("row 3 of $layout", KeyAction.Backspace, layout.rows[2].keys.last().action)
+            assertEquals("row 3 of $layout", RowAlignment.UNIT_EDGES, layout.rows[2].alignment)
         }
     }
 
     @Test
-    fun `backspace is the last key of row 1 on both layers`() {
-        assertEquals(KeyAction.Backspace, KeyboardLayouts.BASE_LAYOUT_ALNUM.rows[0].keys.last().action)
-        assertEquals(KeyAction.Backspace, KeyboardLayouts.SYMBOL_LAYOUT_ALNUM.rows[0].keys.last().action)
+    fun `rows 2 and 3 are sized against row 1's key width, not stretched`() {
+        for (layout in ALL_LAYOUTS) {
+            assertEquals("row 1 of $layout", RowAlignment.STRETCH, layout.rows[0].alignment)
+            assertEquals("row 2 of $layout", RowAlignment.UNIT_CENTERED, layout.rows[1].alignment)
+        }
+    }
+
+    @Test
+    fun `row 1 is exactly the ten letter or digit keys`() {
+        // Backspace used to be an eleventh key here; moving it to row 3 is what lets these ten
+        // widen to a clean tenth of the keyboard, the unit every other row is sized against.
+        assertEquals(
+            "qwertyuiop".map { KeyAction.Char(it) },
+            KeyboardLayouts.BASE_LAYOUT_ALNUM.rows[0].keys.map { it.action },
+        )
+        assertEquals("1234567890".toList(), KeyboardLayouts.SYMBOL_LAYOUT_ALNUM.rows[0].keys.map { it.label.single() })
     }
 
     @Test
@@ -108,14 +175,7 @@ class KeyboardLayoutDataTest {
 
     @Test
     fun `all key ids within a layout are unique`() {
-        val layouts =
-            listOf(
-                KeyboardLayouts.BASE_LAYOUT_ALNUM,
-                KeyboardLayouts.BASE_LAYOUT_ROMAJI,
-                KeyboardLayouts.SYMBOL_LAYOUT_ALNUM,
-                KeyboardLayouts.SYMBOL_LAYOUT_ROMAJI,
-            )
-        for (layout in layouts) {
+        for (layout in ALL_LAYOUTS) {
             val ids = layout.rows.flatMap { it.keys.map { key -> key.id } }
             assertTrue("duplicate key ids in $layout: $ids", ids.size == ids.toSet().size)
         }

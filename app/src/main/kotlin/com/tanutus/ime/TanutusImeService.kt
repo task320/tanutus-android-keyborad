@@ -312,13 +312,30 @@ class TanutusImeService :
 
     override fun onCompositionUpdated(composition: Composition) {
         candidateBarView.setCandidates(composition.candidates, composition.candidateIndex)
-        // composition.text (not currentCandidate) is what belongs in the composing span: for a
-        // multi-segment Mozc conversion, currentCandidate is only the focused segment's word, and
-        // setComposingText replaces the *entire* span — using it here would make every segment
-        // but the focused one disappear from view mid-conversion. text is Mozc's own preedit
-        // (all segments, with the focused one already reflecting its current candidate), which
-        // is the right thing to show whether one segment is composing or many.
-        currentInputConnection?.setComposingText(composition.text, 1)
+        val inputConnection = currentInputConnection
+        // One edit, for the same reason as applySegmentCommit: between the commit and the new
+        // composing text the composing span is momentarily gone.
+        inputConnection?.beginBatchEdit()
+        try {
+            // Text the engine confirmed on the way to this composition (e.g. the conversion that
+            // was showing when the user typed the next key) must land in the document *before*
+            // the composing span is replaced. commitText on an active composing span replaces
+            // that span with the committed text, which is exactly the "confirm in place" wanted;
+            // skipping it let setComposingText below overwrite the conversion with the new key.
+            if (composition.committedText.isNotEmpty()) {
+                inputConnection?.commitText(composition.committedText, 1)
+            }
+            // composition.text (not currentCandidate) is what belongs in the composing span: for
+            // a multi-segment Mozc conversion, currentCandidate is only the focused segment's
+            // word, and setComposingText replaces the *entire* span — using it here would make
+            // every segment but the focused one disappear from view mid-conversion. text is
+            // Mozc's own preedit (all segments, with the focused one already reflecting its
+            // current candidate), which is the right thing to show whether one segment is
+            // composing or many.
+            inputConnection?.setComposingText(composition.text, 1)
+        } finally {
+            inputConnection?.endBatchEdit()
+        }
     }
 
     // endregion
@@ -405,9 +422,10 @@ class TanutusImeService :
         // Only direct-alnum mode is excluded from this: romaji composing ignores shift for
         // casing (kana has no case, see onKeyChar), so showing uppercase key glyphs there
         // would promise a case change the typed kana would never actually show.
-        val uppercaseLetters = state.inputMode == InputMode.DIRECT_ALNUM && state.shift != ShiftState.OFF
-        keyboardView.render(layout, colors, uppercaseLetters, enterKeyBehavior.label) { action ->
-            stateMachine.isLockedVisual(action)
+        val shiftActive = state.shift != ShiftState.OFF
+        val uppercaseLetters = state.inputMode == InputMode.DIRECT_ALNUM && shiftActive
+        keyboardView.render(layout, colors, uppercaseLetters, shiftActive, enterKeyBehavior.label) { action ->
+            stateMachine.visualStateFor(action)
         }
         // Keeps the gesture-safe-area padding (see applyGestureSafeAreaPadding) visually
         // seamless with row 4 instead of showing as a mismatched strip below it.

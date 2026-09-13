@@ -13,6 +13,13 @@
     <!-- Half the brightness of key_background_locked (per-channel /2), used only for the
          Shift key's lock fill so it reads as visually distinct from #12/A-toggle locks. -->
     <color name="key_background_shift_locked">#FF26457A</color>
+    <!-- Momentary shift: midway between a normal key and the shift lock above, so "armed for
+         one character" reads as weaker than "locked" rather than as another lock. -->
+    <color name="key_background_shift_momentary">#FF2B3C5B</color>
+    <!-- Zenkaku (full-width) is drawn as an outline, not a fill, because it is independent
+         of the direct-alnum fill on the very same A/あ key — see KeyVisualState. Warm so it
+         reads against both the normal grey and the blue lock underneath it. -->
+    <color name="key_outline_zenkaku">#FFF5A623</color>
     <color name="key_text_normal">#FFF5F5F5</color>
     <color name="key_text_locked">#FFFFFFFF</color>
 

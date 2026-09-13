@@ -42,24 +42,43 @@ data class KeyDef(
     val widthWeight: Float = 1f,
 )
 
-/**
- * [centered]: when true, this row's keys are drawn at the *same* width as row 0's keys
- * (rather than stretching to fill the row, as every other row does) and the row is horizontally
- * centered, leaving equal empty margins on both sides. See [KeyboardLayouts.BASE_ROWS_PREFIX]'s
- * z-row for why.
- */
-data class KeyRow(val keys: List<KeyDef>, val centered: Boolean = false)
+/** How a row's keys are sized and placed across the keyboard's width. */
+enum class RowAlignment {
+    /** Keys divide the full width in proportion to their weight (row 1, the function row). */
+    STRETCH,
+
+    /**
+     * Keys are drawn at row 1's per-unit key width and the whole block is centered, leaving
+     * equal empty margins on both sides — so a shorter row lines up with row 1's columns
+     * instead of stretching its keys to fill the width.
+     */
+    UNIT_CENTERED,
+
+    /**
+     * Sized like [UNIT_CENTERED], but the first and last keys are pinned to the left and right
+     * edges and only the keys between them are centered. This is what puts Shift and Backspace
+     * at the same screen position on both layers even though layer 2's row 3 holds one more key
+     * between them than layer 1's does.
+     */
+    UNIT_EDGES,
+}
+
+data class KeyRow(val keys: List<KeyDef>, val alignment: RowAlignment = RowAlignment.STRETCH)
 
 data class KeyboardLayout(val layer: Layer, val rows: List<KeyRow>)
 
 /**
  * Static layer definitions matching docs/keyboard-spec.md.
  *
- * Shift lives at the left end of row 3 rather than in row 4, which frees the two slots
- * flanking the space key for punctuation in *both* input modes — direct-alnum had no comma
- * or period at all before. Row 3 is where Shift sits on a physical QWERTY anyway, and keeping
- * it out of the mode-dependent row 4 is also what makes it reachable while composing romaji,
- * where layer 2's [KeyAction.ShiftPair] keys (`_`, `"`) genuinely need it.
+ * Row 3 is bookended by Shift on the left and Backspace on the right with the letters (or
+ * symbols) centered between them, the familiar phone-QWERTY shape. Moving Backspace out of
+ * row 1 lets row 1 be exactly the ten letter keys, and every other row is then sized against
+ * that one key width — see [RowAlignment].
+ *
+ * Shift living in row 3 rather than row 4 also frees the two slots flanking the space key for
+ * punctuation in *both* input modes (direct-alnum had no comma or period at all before), and
+ * keeps Shift reachable while composing romaji, where layer 2's [KeyAction.ShiftPair] keys
+ * (`_`, `"`) genuinely need it.
  *
  * Row 4 has two variants selected by [InputMode] (see [FUNCTION_ROW_ALNUM] /
  * [FUNCTION_ROW_ROMAJI]). They are structurally identical now — same key count, same actions
@@ -72,9 +91,9 @@ object KeyboardLayouts {
     private fun charKey(id: String, char: Char): KeyDef = KeyDef(id, char.toString(), KeyAction.Char(char))
 
     /**
-     * One shared definition used by row 3 of both layers. Note this is *not* the positional
-     * guarantee row 4 and Backspace carry: layer 2's row 3 holds one more key than layer 1's,
-     * so Shift does shift sideways when the layer toggles.
+     * Row 3's left-edge key on both layers. Layer 2's row 3 holds one more key than layer 1's,
+     * so it is [RowAlignment.UNIT_EDGES] — not equal key counts — that keeps Shift from moving
+     * when the layer toggles.
      */
     private val SHIFT_KEY = KeyDef("shift", "Shift", KeyAction.Shift)
 
@@ -100,7 +119,7 @@ object KeyboardLayouts {
                 KeyDef("key_comma", ",", KeyAction.Char(',')),
                 KeyDef("space", " ", KeyAction.Space, widthWeight = 3f),
                 KeyDef("key_period", ".", KeyAction.Char('.')),
-                KeyDef("romaji_toggle", "A/あ", KeyAction.RomajiToggle),
+                KeyDef("romaji_toggle", "あ/A", KeyAction.RomajiToggle),
                 ENTER_KEY,
             ),
         )
@@ -117,52 +136,83 @@ object KeyboardLayouts {
                 KeyDef("kuten", "。", KeyAction.Punctuation('。')),
                 KeyDef("space", " ", KeyAction.Space, widthWeight = 3f),
                 KeyDef("touten", "、", KeyAction.Punctuation('、')),
-                KeyDef("romaji_toggle", "A/あ", KeyAction.RomajiToggle),
+                KeyDef("romaji_toggle", "あ/A", KeyAction.RomajiToggle),
                 ENTER_KEY,
             ),
         )
 
+    /** Row 3's right-edge key on both layers — the mirror of [SHIFT_KEY]. */
     private val BACKSPACE_KEY = KeyDef("backspace", "⌫", KeyAction.Backspace)
 
     private val BASE_ROWS_PREFIX: List<KeyRow> =
         listOf(
+            KeyRow("qwertyuiop".map { charKey("key_$it", it) }),
+            KeyRow("asdfghjkl".map { charKey("key_$it", it) }, RowAlignment.UNIT_CENTERED),
             KeyRow(
-                "qwertyuiop".map { charKey("key_$it", it) } + BACKSPACE_KEY,
+                listOf(SHIFT_KEY) + "zxcvbnm".map { charKey("key_$it", it) } + BACKSPACE_KEY,
+                RowAlignment.UNIT_EDGES,
             ),
-            KeyRow("asdfghjkl".map { charKey("key_$it", it) }, centered = true),
-            KeyRow(listOf(SHIFT_KEY) + "zxcvbnm".map { charKey("key_$it", it) }, centered = true),
         )
 
+    private fun pairKey(id: String, base: Char, shifted: Char): KeyDef =
+        KeyDef(id, base.toString(), KeyAction.ShiftPair(base, shifted))
+
+    /**
+     * Shifted glyphs for the digit row, index-aligned with "1234567890" — the US layout's own
+     * top row. Reusing that mapping rather than inventing one means the shifted symbols are
+     * already in the muscle memory of anyone who types on a physical keyboard.
+     */
+    private const val SHIFTED_DIGITS = "!@#\$%^&*()"
+
+    /**
+     * Layer 2 covers all 32 ASCII punctuation marks (bar `,` and `.`, which live on row 4) by
+     * giving most keys a Shift partner, the same mechanism `-`/`_` already used. Pairings follow
+     * the US layout wherever both characters exist on one of its keys, so nothing new has to be
+     * memorised; the Markdown-frequent member of each pair is the unshifted one.
+     *
+     * That ordering is why two pairs are deliberately flipped relative to a US keyboard:
+     * `>` (blockquote) and `|` (tables) are everyday Markdown while `<` and `\` are not, so they
+     * take the unshifted side. Row 2 then holds exactly the ten symbols a Markdown document
+     * uses most, reachable without Shift at all.
+     */
     private val SYMBOL_ROWS_PREFIX: List<KeyRow> =
         listOf(
-            KeyRow(
-                "1234567890".map { charKey("key_$it", it) } + BACKSPACE_KEY,
-            ),
+            KeyRow("1234567890".mapIndexed { i, digit -> pairKey("key_$digit", digit, SHIFTED_DIGITS[i]) }),
             KeyRow(
                 listOf(
                     charKey("key_paren_open", '('),
                     charKey("key_paren_close", ')'),
-                    charKey("key_bracket_open", '['),
-                    charKey("key_bracket_close", ']'),
-                    charKey("key_brace_open", '{'),
-                    charKey("key_brace_close", '}'),
-                    KeyDef("key_hyphen", "-", KeyAction.ShiftPair('-', '_')),
-                    charKey("key_slash", '/'),
-                    charKey("key_colon", ':'),
+                    pairKey("key_bracket_open", '[', '{'),
+                    pairKey("key_bracket_close", ']', '}'),
+                    charKey("key_asterisk", '*'),
+                    pairKey("key_backtick", '`', '~'),
+                    pairKey("key_gt", '>', '<'),
+                    pairKey("key_pipe", '|', '\\'),
+                    // The hyphen doubles as the chōonpu "ー" while composing romaji (see
+                    // TanutusImeService.onShiftPairKey), and # is the Markdown heading key, so
+                    // these two are the row's most-used keys when writing Japanese notes —
+                    // hence the right end, nearest the thumb, with # outermost.
+                    pairKey("key_hyphen", '-', '_'),
+                    charKey("key_hash", '#'),
                 ),
+                RowAlignment.UNIT_CENTERED,
             ),
             KeyRow(
                 listOf(
                     SHIFT_KEY,
-                    charKey("key_hash", '#'),
-                    charKey("key_asterisk", '*'),
-                    charKey("key_plus", '+'),
-                    charKey("key_lt", '<'),
-                    charKey("key_gt", '>'),
-                    charKey("key_backtick", '`'),
-                    charKey("key_tilde", '~'),
-                    KeyDef("key_quote", "'", KeyAction.ShiftPair('\'', '"')),
+                    pairKey("key_slash", '/', '?'),
+                    pairKey("key_colon", ':', ';'),
+                    pairKey("key_equals", '=', '+'),
+                    pairKey("key_quote", '\'', '"'),
+                    // Both also reachable as Shift+1 and Shift+7, but they earn their own keys:
+                    // ! opens every image link and & every URL query, the same reasoning that
+                    // keeps ( and ) on row 2 despite Shift+9/Shift+0.
+                    charKey("key_bang", '!'),
+                    charKey("key_amp", '&'),
+                    charKey("key_at", '@'),
+                    BACKSPACE_KEY,
                 ),
+                RowAlignment.UNIT_EDGES,
             ),
         )
 

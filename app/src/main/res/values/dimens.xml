@@ -6,6 +6,7 @@
     <dimen name="key_label_text_size">18sp</dimen>
     <dimen name="candidate_text_size">16sp</dimen>
     <dimen name="key_gap">2dp</dimen>
+    <dimen name="key_outline_width">2dp</dimen>
 
     <!--
       docs/keyboard-spec.md left these as "実装しながら調整する" (tune while
