@@ -44,7 +44,7 @@
        スクリーンショットでは確認不可)
 
 3. **見つけて修正した実バグ2件**
-   - **[core/conversion/KanaConverter.kt](../core/src/main/kotlin/com/tanutus/ime/core/conversion/KanaConverter.kt)**:
+   - **[core/conversion/KanaConverter.kt](../core/src/main/kotlin/tokyo/tanutus/ime/core/conversion/KanaConverter.kt)**:
      `Composition.candidates`のデフォルトが`listOf(text)`だったため、`text`が空文字のとき
      (Backspaceで未確定文字列を完全に消したときなど)「空文字列が1件だけ入った候補リスト」を返して
      しまい、候補バーに空の青いチップが残留するバグがあった。`text.isEmpty()`なら`emptyList()`を

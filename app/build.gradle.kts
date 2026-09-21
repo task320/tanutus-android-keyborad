@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.tanutus.ime"
+    namespace = "tokyo.tanutus.ime"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.tanutus.ime"
+        applicationId = "tokyo.tanutus.ime"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

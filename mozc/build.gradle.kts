@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.tanutus.ime.mozc"
+    namespace = "tokyo.tanutus.ime.mozc"
     compileSdk = 36
 
     defaultConfig {

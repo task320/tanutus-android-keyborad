@@ -180,3 +180,58 @@
   `，``．` になること、Shiftの新しい位置の押しやすさ、ローマ字+レイヤー2で `_` `"` が
   打てること。
 - その後 **優先2のMarkdown補助動作 第一弾**。
+
+---
+
+## 2026-09-21 — 数字キーで未確定文字列が確定してしまう問題
+
+### やったこと
+
+レイヤー2の数字キーが、未確定のローマ字合成を強制確定させてから入力される挙動を直した。
+
+- 原因: 数字キーは `KeyAction.ShiftPair`(`1`/`!` など)で、`onShiftPairKey` が
+  チョーオン `-` 以外をすべて `commitLiteralChar` に流していた。この関数は冒頭で
+  `commitActiveComposition()` を呼ぶため、数字を1つ打つたびに合成が確定していた。
+- 修正: `TanutusImeService.onShiftPairKey` で、ローマ字入力モード + Shift OFF +
+  数字キー + 未確定合成ありのときは `kanaConverter.input()` に流すようにした
+  (句読点 `onPunctuationKey` と同じルール)。「だい」+「1」→ 未確定のまま「だい１」。
+- 合成が何もないときは従来どおり直接確定入力のまま。数字を打つだけで未確定文字列が
+  発生してEnterが1回余計に要るのを避けるため。Shift併用の `!@#…` も従来どおり半角ASCII。
+- 全角/半角: Mozcはひらがなモードの未確定文字列で数字を全角にするので、
+  `commitLiteralChar` 経由だったときの全角出力と見た目は変わらない。
+- `docs/keyboard-spec.md` の「変換動作」節に上記ルールを追記した。
+
+### 動作確認の結果
+
+- `assembleDebug` — **成功**
+- `:core:test` — **成功**(`:core` は無変更)
+- **実機確認は未実施**。`./gradlew` が作業ツリー上CRLFになっていて起動しないため、
+  `java -classpath gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain`
+  で代用した(リポジトリ側はLFなので、チェックアウト設定の問題)。
+
+### 次にやること
+
+- 実機確認(前回までの分 + 今回分)。今回分で見るのは、「だい1」と打って未確定のまま
+  「だい１」になること、Enterで確定できること、Backspaceで数字だけ消せること、
+  合成なしで数字を打ったときに全角数字がそのまま入ること。
+- その後 **優先2のMarkdown補助動作 第一弾**。
+
+### パッケージ名を `com.tanutus` → `tokyo.tanutus` へ変更(同日)
+
+- `applicationId` / `namespace`(`:app`・`:mozc`)を `tokyo.tanutus.ime` に変更。
+- Kotlinのパッケージも同時に移動(`src/*/kotlin/com/tanutus/` → `tokyo/tanutus/`、`git mv`)。
+  `:app` `:core` `:mozc` の全ソースと `:core` のテストが対象。
+- **`mozc/src/main/kotlin/com/google/android/apps/inputmethod/libs/mozc/session/MozcJNI.kt`
+  は変更していない**。JNIのシンボル名がこのパッケージ名に紐づいているため、
+  動かすと `libmozc.so` から解決できなくなる。
+- AndroidManifestはクラス名が相対指定(`.MainActivity` / `.TanutusImeService`)なので変更不要。
+  `res/` にもパッケージ名の文字列参照はなかった。
+- `docs/HANDOFF.md` と `docs/mozc-integration-feasibility.md` の
+  ソースへのリンクパスも追従させた。
+
+### 動作確認の結果(パッケージ変更後)
+
+- `assembleDebug` / `:core:test` — **成功**
+- 実機(Pixel 9a、ワイヤレスデバッグ)へインストール成功。`tokyo.tanutus.ime` として認識。
+- 旧 `com.tanutus.ime` は端末からアンインストール済み(パッケージ名が変わると別アプリ扱いに
+  なり、同じキーボードが2つ並ぶため)。端末側のIME有効化はやり直しが必要。

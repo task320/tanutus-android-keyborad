@@ -73,7 +73,7 @@ Android向けクライアント(Java/UI)コードは本家では2021年頃に削
 つまりKotlin側の統合イメージは、`mozc.commands.Command`protoをKotlin/Java側でも
 (protoファイルは`protocol/commands.proto`にある)ビルドし、`evalCommand`にリクエストを
 シリアライズして渡し、レスポンスをパースして`KanaConverter`インターフェース
-([core/conversion/KanaConverter.kt](../core/src/main/kotlin/com/tanutus/ime/core/conversion/KanaConverter.kt))
+([core/conversion/KanaConverter.kt](../core/src/main/kotlin/tokyo/tanutus/ime/core/conversion/KanaConverter.kt))
 の実装にマッピングする形になる。`data_file_path`が渡せない/読み込みに失敗した場合は
 自動的に「minimal engine」にフォールバックする実装になっている(`CreateMobileEngine`)。
 
