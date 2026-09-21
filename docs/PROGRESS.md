@@ -205,16 +205,7 @@
 
 - `assembleDebug` — **成功**
 - `:core:test` — **成功**(`:core` は無変更)
-- **実機確認は未実施**。`./gradlew` が作業ツリー上CRLFになっていて起動しないため、
-  `java -classpath gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain`
-  で代用した(リポジトリ側はLFなので、チェックアウト設定の問題)。
-
-### 次にやること
-
-- 実機確認(前回までの分 + 今回分)。今回分で見るのは、「だい1」と打って未確定のまま
-  「だい１」になること、Enterで確定できること、Backspaceで数字だけ消せること、
-  合成なしで数字を打ったときに全角数字がそのまま入ること。
-- その後 **優先2のMarkdown補助動作 第一弾**。
+- **実機(Pixel 9a)で確認済み。数字キーで確定してしまう問題は解消**(本人確認)。
 
 ### パッケージ名を `com.tanutus` → `tokyo.tanutus` へ変更(同日)
 
@@ -235,3 +226,27 @@
 - 実機(Pixel 9a、ワイヤレスデバッグ)へインストール成功。`tokyo.tanutus.ime` として認識。
 - 旧 `com.tanutus.ime` は端末からアンインストール済み(パッケージ名が変わると別アプリ扱いに
   なり、同じキーボードが2つ並ぶため)。端末側のIME有効化はやり直しが必要。
+
+### 環境側で踏んだ問題(Linux作業ツリー)
+
+作業ツリーがWindows側チェックアウト由来でCRLF、かつLinux側に`git-lfs`が無く、以下を解消した。
+次回同じ環境を使うときはもう発生しない。
+
+- `./gradlew` が `/bin/sh^M: bad interpreter` で起動しない → `sed -i 's/\r$//' gradlew` で解消。
+- `git-lfs` 未インストールで `git status` が落ち、`mozc.data`/`libmozc.so` が変更扱いになる
+  (実体とLFSポインタを比較していただけ)。この状態で `git add -A` すると18MBのバイナリが
+  ポインタでなく実体でコミットされるため危険だった → `apt install git-lfs && git lfs install` で解消。
+- Linux側で `core.autocrlf` 未設定のため全ファイルが改行差分になる → ローカルに
+  `core.autocrlf=input` を設定(コミット時のみLF正規化。ワークツリーとWindows側は不変)。
+
+### ブランチ構成の変更
+
+`main` が存在せず、`claude/spec-refinement-y3vbn7` がデフォルトブランチになっていたため、
+これを `main` にリネームしてpushし、GitHubのデフォルトブランチも `main` に変更。
+旧ブランチはリモートから削除した。**以後の本線は `main`**。
+
+### 次にやること
+
+- **優先2のMarkdown補助動作 第一弾**。
+- 前回(2026-09-13)までの変換安定化・Shift配置変更は、実機での通し確認がまだ。
+  Markdown補助に入る前に一度触って確認しておく。
